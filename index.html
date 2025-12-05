@@ -51,24 +51,40 @@
     <div id="metarStatus" class="small"></div>
   </div>
 
-  <!-- WX charts section: SIGWX LOW -->
+  <!-- WX charts section: LOW LEVEL ITALY -->
   <div class="card">
-    <h2>SIGWX LOW (AviationWeather.gov) — Reggio reference</h2>
-    <p class="small">SIGWX LOW chart (global). Use the refresh button to request the latest image. Below a small map centers on Reggio Emilia for local context.</p>
+    <h2>WX Chart — LOW LEVEL ITALY (SWLL)</h2>
+    <p class="small">
+      Carta significativa del tempo a bassi livelli (SWLL, suolo–FL100) per l’area Italia.<br>
+      L’immagine qui sotto è un file statico <code>swll_italy_latest.png</code> salvato localmente
+      (dal sito ufficiale MeteoAM) e caricato su questo sito.
+    </p>
 
-    <img id="sigwxImg" class="wxchart" src="https://aviationweather.gov/data/charts/swh/Latest_SWL.png" alt="SIGWX LOW chart" />
+    <!-- Solo immagine locale, niente sito -->
+    <img id="swllImg"
+         class="wxchart"
+         src="swll_italy_latest.png"
+         alt="SWLL Italy - low level significant weather">
 
     <div class="wx-row">
-      <button class="btn secondary" onclick="reloadSigwx()">Reload SIGWX</button>
-      <button class="btn secondary" onclick="openSigwxInNew()">Open full image</button>
+      <button class="btn secondary" onclick="reloadLocalSwll()">Reload immagine</button>
+      <button class="btn secondary" onclick="openSwllSource()">Apri MeteoAM SWLL (per scaricare nuova carta)</button>
     </div>
 
-    <div class="small" id="sigwxInfo">Source: aviationweather.gov - SIGWX LOW (FL100–250). Last loaded: <span id="sigwxTime">—</span></div>
+    <div class="small" id="swllInfo">
+      Source originale: <strong>MeteoAM</strong> — Carta significativa del tempo SWLL Italia.<br>
+      Immagine locale: <code>swll_italy_latest.png</code>. Last reload: <span id="swllTime">—</span>
+    </div>
 
-    <!-- small OSM map centered on Reggio Emilia (44.699, 10.626) -->
-    <iframe class="osm" src="https://www.openstreetmap.org/export/embed.html?bbox=10.50%2C44.62%2C10.75%2C44.78&layer=mapnik&marker=44.699%2C10.626" title="Reggio Emilia map"></iframe>
-    <div class="small">Map: Reggio Emilia marker (approx). Use the SIGWX chart above to visualise synoptic features relative to the field.</div>
+    <!-- Mappa OSM centrata su Reggio Emilia -->
+    <iframe class="osm"
+      src="https://www.openstreetmap.org/export/embed.html?bbox=10.55%2C44.65%2C10.71%2C44.74&layer=mapnik&marker=44.699%2C10.63"
+      title="Reggio Emilia map"></iframe>
+    <div class="small">
+      Mappa: marker centrato su Reggio Emilia. Usa la SWLL per valutare i fenomeni in zona Italia / area Po Valley.
+    </div>
   </div>
+  
 
   <!-- Inputs & T/O / Safety -->
   <div class="card">
@@ -147,7 +163,25 @@
 const AVWX_TOKEN = "Z40mhXflUZEQ_xWPCMktcJz5kXX9mBAdBJsY_Jsv6wc";
 
 /* SIGWX image URL */
-const SIGWX_URL = "https://aviationweather.gov/data/charts/swh/Latest_SWL.png";
+const SWLL_SOURCE_URL = "https://www.meteoam.it/it/swll"; // solo per aprire il sito in nuova scheda
+
+function setSwllTimestamp(ts){
+  document.getElementById('swllTime').textContent = ts || (new Date()).toLocaleString();
+}
+
+function reloadLocalSwll(){
+  const img = document.getElementById('swllImg');
+  // forzo il browser a ricaricare il file dal server GitHub
+  img.src = "swll_italy_latest.png?_=" + Date.now();
+  setSwllTimestamp(new Date().toLocaleString());
+}
+
+function openSwllSource(){
+  window.open(SWLL_SOURCE_URL, "_blank");
+}
+
+// chiama almeno una volta all’avvio:
+setSwllTimestamp(new Date().toLocaleString());
 
 /* ========== HELPERS ========== */
 function toRad(d){ return d * Math.PI / 180; }
