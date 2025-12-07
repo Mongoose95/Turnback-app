@@ -21,13 +21,11 @@
     .result { margin-top:.5rem; font-weight:600; }
     .warning { font-size:.8rem; color:#b00020; margin-top:.5rem; }
     pre { font-size:.8rem; white-space:pre-wrap; margin-top:.3rem; }
-    img.wxchart { width:100%; max-width:1000px; border-radius:8px; border:1px solid #ddd; margin-top:.4rem; }
-    iframe.osm { width:100%; height:260px; border:1px solid #ddd; border-radius:6px; margin-top:.4rem; }
     svg { width:100%; height:170px; background:#fafafa; border-radius:6px; margin-top:.4rem; }
   </style>
 </head>
 <body>
-<h1>C172M — Route, Turnback Safety, T/O & Mass & Balance (Reggio Emilia)</h1>
+<h1>C172M — Route, Turnback Safety, T/O &amp; Mass &amp; Balance (Reggio Emilia)</h1>
 <p class="small">
   Campo: Reggio Emilia (elev 152 ft). Aereo: C172M MTOW 2300 lb, best glide 65 kt, bank max 30°.<br>
   <strong>USO DIDATTICO — non per decisioni operative reali.</strong>
@@ -37,8 +35,9 @@
 <div class="card">
   <h2>Route planning (Italy — direct)</h2>
   <p class="small">
-    Usa <code>airports_it.csv</code> (tutti gli aeroporti italiani). Vento in cruise da modello GFS (Open-Meteo)
-    sul punto medio rotta. Mostra anche aeroporti con METAR entro 25 NM dalla track.
+    Dept/Dest per tutti gli aeroporti Italia (da <code>airports_it.csv</code>).<br>
+    Vento in cruise dal modello GFS (Open-Meteo) sul punto medio rotta.<br>
+    METAR degli aeroporti entro ~25 NM dalla track ricavati via AVWX.
   </p>
   <div class="grid">
     <div>
@@ -59,7 +58,7 @@
     </div>
     <div>
       <label for="offBlockTime">Off-block time (HH:MM locale)</label>
-      <input id="offBlockTime" type="text" placeholder="14:30" />
+      <input id="offBlockTime" type="text" placeholder="16:00" />
     </div>
     <div>
       <label for="circuitHeight">Circuit height above field (ft)</label>
@@ -70,42 +69,36 @@
   <div id="routeOutput" class="small" style="margin-top:.5rem; white-space:pre-wrap;"></div>
 </div>
 
-<!-- METAR -->
+<!-- METAR LIMP -->
 <div class="card">
-  <h2>METAR (LIMP / LIPE)</h2>
+  <h2>METAR LIMP (Parma)</h2>
   <p class="small">
-    Incolla i METAR di Parma (LIMP) e Bologna (LIPE).<br>
-    Temperatura &amp; QNH: media se entrambi disponibili, altrimenti quello presente.<br>
-    Vento T/O/landing: preso da LIMP, fallback LIPE.
+    Premi il pulsante per recuperare il METAR attuale di LIMP tramite AVWX.<br>
+    Temperatura, QNH e vento verranno inseriti automaticamente nella sezione
+    <strong>Performance &amp; Safety altitude</strong> qui sotto (puoi sempre modificarli a mano).
   </p>
-  <label for="metarLIMP">METAR LIMP</label>
-  <textarea id="metarLIMP" placeholder="METAR LIMP 011850Z 08008KT 9999 FEW030 05/02 Q1020"></textarea>
-  <label for="metarLIPE">METAR LIPE</label>
-  <textarea id="metarLIPE" placeholder="METAR LIPE 011850Z 09006KT 9999 FEW030 04/01 Q1018"></textarea>
-  <button class="btn secondary" onclick="extractFromMetars()">Estrai T/QNH/vento</button>
-  <div id="metarStatus" class="small" style="margin-top:.4rem;"></div>
+  <button class="btn secondary" onclick="loadMetarLIMP()">Carica METAR LIMP</button>
+  <div id="metarLimpBox" class="small" style="margin-top:.4rem;"></div>
 </div>
 
-<!-- WX CHART + MAP -->
+<!-- WX CHART -->
 <div class="card">
-  <h2>WX Chart — LOW LEVEL ITALY (SWLL)</h2>
+  <h2>WX Chart — LOW LEVEL ITALY (MeteoAM SWLL)</h2>
   <p class="small">
-    Immagine locale <code>swll_italy_latest.png</code> (salvata dal sito MeteoAM, carta SWLL Italia).
+    Apri la carta significativa del tempo a bassi livelli (SWLL, suolo–FL100)
+    per l&rsquo;area Italia dal sito ufficiale MeteoAM.
   </p>
-  <img src="swll_italy_latest.png" class="wxchart" alt="SWLL Italy low level chart" />
-  <iframe class="osm"
-          src="https://www.openstreetmap.org/export/embed.html?bbox=10.55%2C44.65%2C10.71%2C44.74&layer=mapnik&marker=44.699%2C10.63"
-          title="Reggio Emilia map">
-  </iframe>
-  <p class="small">Mappa centrata su Reggio Emilia per contesto locale.</p>
+  <button class="btn secondary" onclick="openSwllMeteoAM()">
+    Apri WX Chart — LOW LEVEL ITALY (SWLL)
+  </button>
 </div>
 
 <!-- MASS & BALANCE -->
 <div class="card">
   <h2>Mass &amp; Balance — C172M</h2>
   <p class="small">
-    Dati standard: empty weight 1392 lb, momento 54&nbsp;600 in·lb. Bracci (ARM):
-    pilota/pax front 37", pax rear 73", bag 1 95", bag 2 123", fuel 48". Fuel 6 lb/USG.
+    Dati standard: empty weight 1392 lb, momento 54&nbsp;600 in·lb.<br>
+    Bracci (ARM): pilota/pax front 37", pax rear 73", bag 1 95", bag 2 123", fuel 48". Fuel 6 lb/USG.
   </p>
   <div class="grid">
     <div>
@@ -141,8 +134,8 @@
 <div class="card">
   <h2>Performance &amp; Safety altitude (Reggio Emilia)</h2>
   <p class="small">
-    Usa T/QNH/vento (da METAR) e <strong>ultimo peso calcolato</strong> per stimare safety altitude turnback
-    e distanze di decollo. Se non hai ancora calcolato la M&amp;B, assume 2300 lb (MTOW).
+    Usa T/QNH/vento (da METAR LIMP o inseriti a mano) e <strong>ultimo peso calcolato</strong> per stimare
+    safety altitude turnback e distanze di decollo. Se non hai ancora calcolato la M&amp;B, assume 2300 lb (MTOW).
   </p>
   <div class="grid">
     <div>
@@ -201,6 +194,7 @@
 /* =================== VARIABILI GLOBALI =================== */
 let AIRPORTS_IT = null;
 let lastWeightLb = 2300;   // default MTOW
+const AVWX_TOKEN = 'Z40mhXflUZEQ_xWPCMktcJz5kXX9mBAdBJsY_Jsv6wc';
 
 /* =================== HELPER GENERICI =================== */
 function deg2rad(d){ return d * Math.PI / 180; }
@@ -321,6 +315,77 @@ function windCorrection(courseDeg, tas, windFromDeg, windSpd) {
   return { driftDeg, headingDeg, gs };
 }
 
+/* =================== METAR via AVWX =================== */
+async function fetchMetarText(icao) {
+  if (!AVWX_TOKEN) return null;
+  try {
+    const url =
+      'https://avwx.rest/api/metar/' +
+      encodeURIComponent(icao) +
+      '?format=json&token=' +
+      encodeURIComponent(AVWX_TOKEN);
+
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn('AVWX HTTP', res.status, 'per', icao);
+      return null;
+    }
+    const data = await res.json();
+    return data.raw || null;
+  } catch (e) {
+    console.error('Errore METAR', icao, e);
+    return null;
+  }
+}
+
+/* =================== METAR LIMP -> PERFORMANCE =================== */
+async function loadMetarLIMP() {
+  const box = document.getElementById('metarLimpBox');
+  box.style.color = '#444';
+  box.textContent = 'Caricamento METAR LIMP...';
+
+  const raw = await fetchMetarText('LIMP');
+  if (!raw) {
+    box.style.color = '#b00020';
+    box.textContent = 'METAR LIMP non disponibile.';
+    return;
+  }
+
+  box.style.color = '#111';
+  box.textContent = raw;
+
+  // Parsing molto semplice: T/Td + QNH + vento
+  const t = raw.toUpperCase();
+
+  const tempRe = /\s(M?\d{2})\/(M?\d{2})\s/;
+  const qnhRe  = /Q(\d{4})/;
+  const wRe    = /\s(\d{3})(\d{2,3})KT/;
+
+  function parseTempPart(p){
+    if (!p) return null;
+    p = p.trim();
+    let neg = false;
+    if (p[0] === 'M') { neg = true; p = p.slice(1); }
+    const n = parseInt(p,10);
+    if (isNaN(n)) return null;
+    return neg ? -n : n;
+  }
+
+  const tMatch = t.match(tempRe);
+  const qMatch = t.match(qnhRe);
+  const wMatch = t.match(wRe);
+
+  const temp = tMatch ? parseTempPart(tMatch[1]) : null;
+  const qnh  = qMatch ? parseInt(qMatch[1],10) : null;
+  const wDir = wMatch ? parseInt(wMatch[1],10) : null;
+  const wSpd = wMatch ? parseInt(wMatch[2],10) : null;
+
+  if (temp !== null) document.getElementById('temp').value = temp.toFixed(1);
+  if (!isNaN(qnh))   document.getElementById('qnh').value  = qnh;
+  if (!isNaN(wDir))  document.getElementById('windDir').value   = wDir;
+  if (!isNaN(wSpd))  document.getElementById('windSpeed').value = wSpd;
+}
+
 /* =================== METAR ALONG ROUTE =================== */
 function findMetarAlongRoute(dep, dest, maxDistNm) {
   if (!AIRPORTS_IT) return [];
@@ -364,7 +429,7 @@ function findMetarAlongRoute(dep, dest, maxDistNm) {
   }
 
   out.sort((a,b) => a.t - b.t);
-  return out.slice(0,10);
+  return out.slice(0,15);
 }
 
 /* =================== ROUTE MAIN =================== */
@@ -469,98 +534,34 @@ async function computeRoute() {
   txt += `EET ≈ ${eetMin} min   ETA: ${etaStr}\n\n`;
   txt += tocText + '\n' + todText + '\n';
 
+  // METAR lungo rotta
   const metarStations = findMetarAlongRoute(dep, dest, 25);
-  if (metarStations.length) {
-    txt += `\nMETAR entro 25 NM dalla track:\n`;
-    metarStations.forEach(s => {
-      txt += `- ${s.icao} (${s.name}), offset ≈ ${s.dist.toFixed(1)} NM\n`;
-    });
+
+  if (metarStations.length && AVWX_TOKEN) {
+    txt += `\nMETAR (aeroporti entro ~25 NM dalla rotta):\n`;
+    let anyMetar = false;
+
+    for (const s of metarStations) {
+      const raw = await fetchMetarText(s.icao);
+      if (raw) {
+        anyMetar = true;
+        txt += `- ${s.icao}: ${raw}\n`;
+      }
+    }
+
+    if (!anyMetar) {
+      txt += '(Nessun METAR disponibile per gli aeroporti trovati.)\n';
+    }
+  } else if (metarStations.length && !AVWX_TOKEN) {
+    txt += `\nAeroporti entro 25 NM (configura AVWX_TOKEN per vedere i METAR): `;
+    txt += metarStations.map(s => s.icao).join(', ') + '\n';
   } else {
-    txt += `\nMETAR entro 25 NM: nessun aerodromo nel database.\n`;
+    txt += `\nNessun aerodromo entro 25 NM nel database.\n`;
   }
 
-  txt += `\nNota: vento modellistico Open-Meteo (uso didattico).`;
+  txt += `\nNota: vento modellistico Open-Meteo e METAR via AVWX (uso didattico).`;
 
   out.textContent = txt;
-}
-
-/* =================== METAR PARSING =================== */
-function parseTempPart(p){
-  if (!p) return null;
-  p = p.trim();
-  let neg = false;
-  if (p[0] === 'M') { neg = true; p = p.slice(1); }
-  const n = parseInt(p,10);
-  if (isNaN(n)) return null;
-  return neg ? -n : n;
-}
-
-function parseMetarRaw(raw){
-  if (!raw) return null;
-  const t = raw.toUpperCase();
-  const tempRe = /\s(M?\d{2})\/(M?\d{2})\s/;
-  const qnhRe  = /Q(\d{4})/;
-  const wRe    = /\s(\d{3})(\d{2,3})KT/;
-
-  const tMatch = t.match(tempRe);
-  const qMatch = t.match(qnhRe);
-  const wMatch = t.match(wRe);
-
-  const temp = tMatch ? parseTempPart(tMatch[1]) : null;
-  const qnh  = qMatch ? parseInt(qMatch[1],10) : null;
-  const wDir = wMatch ? parseInt(wMatch[1],10) : null;
-  const wSpd = wMatch ? parseInt(wMatch[2],10) : null;
-
-  if (temp === null && qnh === null && wDir === null && wSpd === null) return null;
-  return { temp, qnh, wDir, wSpd };
-}
-
-function extractFromMetars() {
-  const limpRaw = document.getElementById('metarLIMP').value;
-  const lipeRaw = document.getElementById('metarLIPE').value;
-  const status = document.getElementById('metarStatus');
-
-  const limp = parseMetarRaw(limpRaw);
-  const lipe = parseMetarRaw(lipeRaw);
-
-  if (!limp && !lipe) {
-    status.style.color = '#b00020';
-    status.textContent = 'METAR non riconosciuti.';
-    return;
-  }
-
-  let tVal, qVal, msg = '';
-  if (limp && lipe && limp.temp !== null && lipe.temp !== null && limp.qnh !== null && lipe.qnh !== null) {
-    tVal = (limp.temp + lipe.temp)/2;
-    qVal = (limp.qnh + lipe.qnh)/2;
-    msg = `Media LIMP+LIPE: T≈${tVal.toFixed(1)}°C QNH≈${qVal.toFixed(0)} hPa.`;
-  } else if (limp && limp.temp !== null && limp.qnh !== null) {
-    tVal = limp.temp; qVal = limp.qnh;
-    msg = `Usato solo LIMP: T ${tVal}°C QNH ${qVal} hPa.`;
-  } else if (lipe && lipe.temp !== null && lipe.qnh !== null) {
-    tVal = lipe.temp; qVal = lipe.qnh;
-    msg = `Usato solo LIPE: T ${tVal}°C QNH ${qVal} hPa.`;
-  } else {
-    status.style.color = '#b00020';
-    status.textContent = 'Impossibile ricavare T/QNH.';
-    return;
-  }
-
-  document.getElementById('temp').value = tVal.toFixed(1);
-  document.getElementById('qnh').value  = qVal.toFixed(0);
-
-  // vento: prefer LIMP, fallback LIPE
-  let w = limp && limp.wDir !== null ? limp : lipe;
-  if (w && w.wDir !== null && w.wSpd !== null) {
-    document.getElementById('windDir').value   = w.wDir;
-    document.getElementById('windSpeed').value = w.wSpd;
-    msg += ` Vento: ${w.wDir}° / ${w.wSpd} kt.`;
-  } else {
-    msg += ' Vento non riconosciuto, inserisci a mano.';
-  }
-
-  status.style.color = '#198754';
-  status.textContent = msg;
 }
 
 /* =================== MASS & BALANCE =================== */
@@ -625,7 +626,7 @@ function calcPerformance() {
   const units   = document.getElementById('units').value;
 
   if ([temp,qnh,windDir,windSpd].some(v => isNaN(v))) {
-    alert('Inserisci T, QNH, vento (dir/int).');
+    alert('Inserisci T, QNH, vento (dir/int) o carica il METAR LIMP.');
     return;
   }
 
@@ -799,6 +800,13 @@ function drawRunwayDiagram(roll_ft, fifty_ft, rwy_ft, units) {
   addLabel('Threshold', marginLeft+6, 170, 'start');
   addLabel('Runway end', marginLeft+usableW, 170, 'end');
   addLabel(`${Math.round(rwy_ft)} ft RWY`, marginLeft+usableW/2, 170, 'middle');
+}
+
+/* =================== WX CHART BUTTON =================== */
+function openSwllMeteoAM() {
+  // Sostituisci l'URL con la pagina SWLL che usi abitualmente
+  const url = 'https://www.meteoam.it/'; 
+  window.open(url, '_blank');
 }
 </script>
 </body>
