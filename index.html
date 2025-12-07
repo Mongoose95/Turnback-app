@@ -524,92 +524,103 @@ async function computeRouteFromInputs() {
     return;
   }
 
-  // Calcolo distanza + track
+  // Calcolo distanza + direzione
   const { distNm, trackTrue } = gcDistanceAndTrack(dep.lat, dep.lon, dest.lat, dest.lon);
   const trackMag = applyMagVar(trackTrue);
 
-  // Recupero vento automatico sul punto medio
+  // Recupero vento automatico
   const wind = await getCruiseWindAuto(dep, dest, cruiseAlt);
   const windDir = wind.windDir;
   const windSpd = wind.windSpd;
 
-  // Correzione di deriva con vento auto
+  // correzione deriva & GS
   const wc = windCorrection(trackTrue, tas, windDir, windSpd);
-  const gs = Math.max(40, wc.gs); // evita GS assurde
+  const gs = Math.max(40, wc.gs);
   const eetHours = distNm / gs;
   const eetMin = Math.round(eetHours * 60);
 
-  let etaStr = 'n/a (no off-block time)';
+  let etaStr = 'n/a';
   const baseTime = parseTimeHM(offBlockStr);
-  if (baseTime) {
-    etaStr = addHoursToTime(baseTime, eetHours);
-  }
+  if (baseTime) etaStr = addHoursToTime(baseTime, eetHours);
 
-  // TOC (salita)
+  // Calcolo TOC/TOD
   const depElev = dep.elev_ft || 0;
+  const destElev = dest.elev_ft || 0;
   const deltaClimbFt = Math.max(0, cruiseAlt - depElev);
+
   let tocTimeMin = 0, tocDistNm = 0;
   if (deltaClimbFt > 0) {
-    const roc = 700; // ft/min
-    tocTimeMin = deltaClimbFt / roc;
-    const gsClimb = tas * 0.8;
-    tocDistNm = gsClimb * (tocTimeMin / 60);
+    tocTimeMin = deltaClimbFt / 700;
+    tocDistNm = tas * 0.8 * (tocTimeMin / 60);
   }
 
-  // TOD (discesa) verso circuit alt DEST
-  const destElev = dest.elev_ft || 0;
   const circuitAlt = destElev + circuitHeight;
   const deltaDescentFt = Math.max(0, cruiseAlt - circuitAlt);
+
   let todTimeMin = 0, todDistNm = 0;
   if (deltaDescentFt > 0) {
-    const rod = 500; // ft/min
-    todTimeMin = deltaDescentFt / rod;
-    const gsDescent = tas;
-    todDistNm = gsDescent * (todTimeMin / 60);
+    todTimeMin = deltaDescentFt / 500;
+    todDistNm = tas * (todTimeMin / 60);
+  }function findMetarAlongRoute(dep, dest, maxDistNm) {
+  if (!AIRPORTS_IT) return [];
+
+  const R = 3440.065;
+  const lat0 = deg2rad((dep.lat + dest.lat) / 2);
+  const lon0 = deg2rad((dep.lon + dest.lon) / 2);
+
+  function toXY(lat, lon) {
+    const φ = deg2rad(lat);
+    const λ = deg2rad(lon);
+    return {
+      x: (λ - lon0) * Math.cos(lat0) * R,
+      y: (φ - lat0) * R
+    };
   }
 
-  let txt = '';
-  txt += `DEP: ${depIcao} (${dep.name}), elev ${Math.round(depElev)} ft\n`;
-  txt += `DEST: ${destIcao} (${dest.name}), elev ${Math.round(destElev)} ft\n\n`;
-  txt += `Distance (GC): ${distNm.toFixed(1)} NM\n`;
-  txt += `Track TRUE: ${trackTrue.toFixed(0)}°\n`;
-  txt += `Track MAG (~3°E): ${trackMag.toFixed(0)}°\n\n`;
+  const A = toXY(dep.lat, dep.lon);
+  const B = toXY(dest.lat, dest.lon);
 
-  txt += `${wind.info}\n`;
-  txt += `Heading TRUE (wind corr): ${wc.headingDeg.toFixed(0)}° (drift ${wc.driftDeg.toFixed(1)}°)\n`;
-  txt += `GS stimata: ${gs.toFixed(1)} kt\n\n`;
+  const ABx = B.x - A.x;
+  const ABy = B.y - A.y;
+  const AB2 = ABx*ABx + ABy*ABy || 1;
 
-  txt += `EET: ≈ ${eetMin} min\n`;
-  txt += `Off-block: ${offBlockStr || 'n/a'}  → ETA stimata: ${etaStr}\n\n`;
+  const results = [];
 
-  txt += `Cruise: ${Math.round(cruiseAlt)} ft AMSL\n`;
-  if (deltaClimbFt > 0) {
-    txt += `TOC: +${Math.round(deltaClimbFt)} ft (${tocTimeMin.toFixed(1)} min), distanza ≈ ${tocDistNm.toFixed(1)} NM da DEP\n`;
-  } else {
-    txt += `TOC: nessuna salita (cruise ≤ elev DEP)\n`;
+  for (const ICAO in AIRPORTS_IT) {
+    const ap = AIRPORTS_IT[ICAO];
+    if (!ap) continue;
+    if (ICAO === dep.icao || ICAO === dest.icao) continue;
+
+    const P = toXY(ap.lat, ap.lon);
+    const APx = P.x - A.x;
+    const APy = P.y - A.y;
+
+    const t = (APx*ABx + APy*ABy) / AB2;
+    if (t < 0 || t > 1) continue;
+
+    const projx = A.x + t * ABx;
+    const projy = A.y + t * ABy;
+
+    const dx = P.x - projx;
+    const dy = P.y - projy;
+
+    const dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (dist <= maxDistNm) {
+      results.push({
+        icao: ICAO,
+        name: ap.name,
+        dist,
+        t
+      });
+    }
   }
-  if (deltaDescentFt > 0) {
-    txt += `TOD: -${Math.round(deltaDescentFt)} ft (${todTimeMin.toFixed(1)} min), distanza ≈ ${todDistNm.toFixed(1)} NM prima di DEST (per arrivare a circuit alt ≈ ${Math.round(circuitAlt)} ft)\n`;
-  } else {
-    txt += `TOD: nessuna discesa (cruise ≤ circuit altitude DEST)\n`;
-  }
 
-  // 🔹 NUOVA PARTE: aeroporti con METAR lungo la rotta
-  const metarStations = findMetarAlongRoute(dep, dest, 25); // raggio 25 NM dalla track
-
-  if (metarStations.length > 0) {
-    txt += `\nMETAR potenzialmente disponibili lungo la rotta (≤25 NM dalla track):\n`;
-    metarStations.forEach(s => {
-      txt += `- ${s.icao} (${s.name}), offset ≈ ${s.dist.toFixed(1)} NM\n`;
-    });
-  } else {
-    txt += `\nMETAR lungo la rotta (≤25 NM): nessun aerodromo trovato nel database.\n`;
-  }
-
-  outEl.textContent = txt;
-}
+  results.sort((a,b)=>a.t-b.t);
+  return results;
 }
 /* ========== METAR parsing & fetch ========== */
+  
 function parseTempCode(code){
   if(!code) return null;
   code = code.trim();
