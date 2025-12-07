@@ -39,49 +39,37 @@
     Vento in cruise dal modello GFS (Open-Meteo) sul punto medio rotta.<br>
     METAR degli aeroporti entro ~25 NM dalla track ricavati via AVWX.
   </p>
-  <!-- NOTAM DEP / DEST / ENROUTE -->
+<!-- NOTAM — briefing con fonti ufficiali -->
 <div class="card">
-  <h2>NOTAM — DEP / DEST / ENROUTE (AVWX)</h2>
+  <h2>NOTAM — briefing (fonti ufficiali)</h2>
   <p class="small">
-    Usa i campi ICAO di partenza e destinazione sopra.<br>
-    Recupera i NOTAM di:
-    <br>• aeroporto di partenza (DEP)
-    <br>• aeroporto di destinazione (DEST)
-    <br>• aeroporti lungo rotta entro ~25 NM (stesso algoritmo usato per i METAR enroute).
+    L’app non scarica NOTAM via API (limitazioni tecniche/costi).<br>
+    Usa i link qui sotto per aprire i sistemi ufficiali, con i codici della tua rotta già pronti.
   </p>
-  <button class="btn secondary" onclick="loadNotams()">Carica NOTAM</button>
-  <pre id="notamOutput" class="small" style="margin-top:.4rem;"></pre>
-</div>
-  <div class="grid">
-    <div>
-      <label for="depIcao">Departure ICAO</label>
-      <input id="depIcao" type="text" placeholder="LIDE" />
-    </div>
-    <div>
-      <label for="destIcao">Destination ICAO</label>
-      <input id="destIcao" type="text" placeholder="LIPE" />
-    </div>
-    <div>
-      <label for="tasCruise">TAS cruise (kt)</label>
-      <input id="tasCruise" type="number" value="100" />
-    </div>
-    <div>
-      <label for="cruiseAlt">Cruise altitude (ft AMSL)</label>
-      <input id="cruiseAlt" type="number" value="3000" />
-    </div>
-    <div>
-      <label for="offBlockTime">Off-block time (HH:MM locale)</label>
-      <input id="offBlockTime" type="text" placeholder="16:00" />
-    </div>
-    <div>
-      <label for="circuitHeight">Circuit height above field (ft)</label>
-      <input id="circuitHeight" type="number" value="1000" />
-    </div>
-  </div>
-  <button class="btn primary" onclick="computeRoute()">Calcola rotta</button>
-  <div id="routeOutput" class="small" style="margin-top:.5rem; white-space:pre-wrap;"></div>
-</div>
 
+  <p class="small" id="notamRouteInfo">
+    Nessuna rotta calcolata. Calcola prima la rotta (DEP/DEST).
+  </p>
+
+  <button class="btn secondary" onclick="copyNotamRoute()">
+    Copia stringa ICAO per NOTAM
+  </button>
+
+  <div style="margin-top:.5rem; display:flex; flex-wrap:wrap; gap:.5rem;">
+    <a class="btn secondary" href="https://www.enav.it" target="_blank" rel="noopener">
+      Apri ENAV / AIP Italia
+    </a>
+    <a class="btn secondary" href="https://www.ead.eurocontrol.int" target="_blank" rel="noopener">
+      Apri Eurocontrol EAD Basic
+    </a>
+  </div>
+
+  <p class="small" style="margin-top:.5rem;">
+    Suggerimento: incolla la stringa ICAO nei campi di ricerca dei NOTAM (DEP, DEST,
+    enroute/FIR) nei portali ufficiali.
+  </p>
+</div>
+  
 <!-- METAR LIMP -->
 <div class="card">
   <h2>METAR LIMP (Parma)</h2>
@@ -637,7 +625,35 @@ async function computeRoute() {
   txt += `GS stimata: ${gs.toFixed(1)} kt\n\n`;
   txt += `EET ≈ ${eetMin} min   ETA: ${etaStr}\n\n`;
   txt += tocText + '\n' + todText + '\n';
+function updateNotamRouteInfo(depId, destId, enrouteList) {
+  const p = document.getElementById('notamRouteInfo');
+  if (!p) return;
 
+  if (!depId || !destId) {
+    p.textContent = 'Nessuna rotta calcolata. Calcola prima la rotta (DEP/DEST).';
+    return;
+  }
+
+  const extra = (enrouteList && enrouteList.length)
+    ? ' / enroute: ' + enrouteList.map(a => a.icao).join(', ')
+    : '';
+
+  p.textContent = `Rotta per NOTAM: DEP ${depId} → DEST ${destId}${extra}`;
+}
+
+// permette di copiare la stringa negli appunti
+function copyNotamRoute() {
+  const p = document.getElementById('notamRouteInfo');
+  if (!p) return;
+  const text = p.textContent || '';
+  if (!navigator.clipboard) {
+    alert('Clipboard non disponibile, copia a mano:\n\n' + text);
+    return;
+  }
+  navigator.clipboard.writeText(text)
+    .then(() => alert('Stringa NOTAM copiata negli appunti.'))
+    .catch(() => alert('Impossibile copiare negli appunti, copia a mano:\n\n' + text));
+}
   // METAR lungo rotta
   const metarStations = findMetarAlongRoute(dep, dest, 25);
 
