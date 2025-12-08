@@ -5,22 +5,30 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>C172M — Route, Turnback Safety, T/O & Mass & Balance</title>
   <style>
-    body { font-family: -apple-system, system-ui, sans-serif; margin:0; padding:1rem; color:#111; }
+    body { font-family:-apple-system, system-ui, sans-serif; margin:0; padding:1rem; color:#111; }
     h1 { font-size:1.2rem; margin:0 0 .4rem 0; }
     h2 { font-size:1rem; margin:0 0 .3rem 0; }
+
     .card { border:1px solid #ddd; border-radius:8px; padding:.8rem; margin-bottom:1rem; box-shadow:0 1px 3px rgba(0,0,0,.06); }
     .grid { display:grid; grid-template-columns:1fr 1fr; gap:.5rem .8rem; }
     @media (max-width:650px){ .grid{ grid-template-columns:1fr; } }
+
     label { display:block; margin-top:.4rem; font-size:.9rem; }
     input, textarea, select, button { width:100%; padding:.4rem; margin-top:.15rem; font-size:1rem; box-sizing:border-box; }
     textarea { min-height:3rem; font-family:-apple-system, system-ui, sans-serif; }
+
     .btn { border:none; border-radius:6px; padding:.55rem; cursor:pointer; margin-top:.6rem; }
     .primary { background:#0b6efd; color:#fff; }
     .secondary { background:#e9ecef; color:#111; }
+
+    a.btn { text-decoration:none; display:inline-block; text-align:center; }
+
     .small { font-size:.85rem; color:#444; }
     .result { margin-top:.5rem; font-weight:600; }
     .warning { font-size:.8rem; color:#b00020; margin-top:.5rem; }
+
     pre { font-size:.8rem; white-space:pre-wrap; margin-top:.3rem; }
+
     svg { width:100%; height:170px; background:#fafafa; border-radius:6px; margin-top:.4rem; }
   </style>
 </head>
@@ -31,7 +39,7 @@
   <strong>USO DIDATTICO — non per decisioni operative reali.</strong>
 </p>
 
-<!-- ROUTE -->
+<!-- ================= ROUTE ================= -->
 <div class="card">
   <h2>Route planning (Italy — direct)</h2>
   <p class="small">
@@ -39,7 +47,40 @@
     Vento in cruise dal modello GFS (Open-Meteo) sul punto medio rotta.<br>
     METAR degli aeroporti entro ~25 NM dalla track ricavati via AVWX.
   </p>
-<!-- NOTAM — briefing con fonti ufficiali -->
+
+  <div class="grid">
+    <div>
+      <label for="depIcao">Departure ICAO</label>
+      <input id="depIcao" type="text" placeholder="LIDE" />
+    </div>
+    <div>
+      <label for="destIcao">Destination ICAO</label>
+      <input id="destIcao" type="text" placeholder="LIPE" />
+    </div>
+    <div>
+      <label for="tasCruise">TAS cruise (kt)</label>
+      <input id="tasCruise" type="number" value="100" />
+    </div>
+    <div>
+      <label for="cruiseAlt">Cruise altitude (ft AMSL)</label>
+      <input id="cruiseAlt" type="number" value="3000" />
+    </div>
+    <div>
+      <label for="offBlockTime">Off-block time (HH:MM locale)</label>
+      <input id="offBlockTime" type="text" placeholder="16:00" />
+    </div>
+    <div>
+      <label for="circuitHeight">Circuit height above field (ft)</label>
+      <input id="circuitHeight" type="number" value="1000" />
+    </div>
+  </div>
+
+  <button class="btn primary" onclick="computeRoute()">Calcola rotta</button>
+
+  <pre id="routeOutput"></pre>
+</div>
+
+<!-- ============ NOTAM (briefing, solo stringa ICAO) ============ -->
 <div class="card">
   <h2>NOTAM — briefing (fonti ufficiali)</h2>
   <p class="small">
@@ -69,38 +110,53 @@
     enroute/FIR) nei portali ufficiali.
   </p>
 </div>
-  
-<!-- METAR LIMP -->
+
+<!-- ============ METAR DEPT DINAMICO ============ -->
 <div class="card">
-  <h2>METAR LIMP (Parma)</h2>
+  <h2>METAR DEPT (AVWX)</h2>
   <p class="small">
-    Premi il pulsante per recuperare il METAR attuale di LIMP tramite AVWX.<br>
+    Premi il pulsante per recuperare il METAR per l’aeroporto di partenza (DEP).<br>
+    Logica:
+    <br>• se DEP = <b>LIDE</b> (Reggio Emilia) → usa METAR <b>LIMP</b> (Parma)
+    <br>• se DEP ≠ LIDE → prova METAR di <b>DEP</b>
+    <br>• se non disponibile → prova METAR di <b>DEST</b> (se inserito)
+    <br>• se ancora niente → fallback <b>LIMP</b>
+    <br><br>
     Temperatura, QNH e vento verranno inseriti automaticamente nella sezione
-    <strong>Performance &amp; Safety altitude</strong> qui sotto (puoi sempre modificarli a mano).
+    <b>Performance &amp; Safety altitude</b> qui sotto (poi li puoi sempre modificare a mano).
   </p>
-  <button class="btn secondary" onclick="loadMetarLIMP()">Carica METAR LIMP</button>
-  <div id="metarLimpBox" class="small" style="margin-top:.4rem;"></div>
+
+  <p class="small">
+    Stazione METAR usata: <span id="metarStationLabel">–</span>
+  </p>
+
+  <textarea id="metarDeptText" rows="2" style="width:100%; font-family:monospace;"></textarea>
+
+  <button class="btn secondary" style="margin-top:.5rem;" onclick="loadMetarDept()">
+    Carica METAR DEPT
+  </button>
 </div>
 
-<!-- WX CHART -->
+<!-- ============ WX CHART (link esterno) ============ -->
 <div class="card">
   <h2>WX Chart — LOW LEVEL ITALY (MeteoAM SWLL)</h2>
   <p class="small">
     Apri la carta significativa del tempo a bassi livelli (SWLL, suolo–FL100)
-    per l&rsquo;area Italia dal sito ufficiale MeteoAM.
+    per l’area Italia dal sito ufficiale MeteoAM.
   </p>
   <button class="btn secondary" onclick="openSwllMeteoAM()">
     Apri WX Chart — LOW LEVEL ITALY (SWLL)
   </button>
 </div>
 
-<!-- MASS & BALANCE -->
+<!-- ============ MASS & BALANCE ============ -->
 <div class="card">
   <h2>Mass &amp; Balance — C172M</h2>
   <p class="small">
-    Dati standard: empty weight 1392 lb, momento 54&nbsp;600 in·lb.<br>
-    Bracci (ARM): pilota/pax front 37", pax rear 73", bag 1 95", bag 2 123", fuel 48". Fuel 6 lb/USG.
+    Dati standard: empty weight <b>1518.56 lb</b>, momento <b>60 750 in·lb</b>.<br>
+    Bracci (ARM) indicativi: pilota/pax front 37", pax rear 73", bag 1 95", bag 2 123", fuel 48". Fuel 6 lb/USG.
   </p>
+
   <div class="grid">
     <div>
       <label for="mbPilot">Pilota (lb)</label>
@@ -127,33 +183,35 @@
       <input id="mbBag2" type="number" />
     </div>
   </div>
+
   <button class="btn primary" onclick="calcMassBalance()">Calcola M&amp;B</button>
   <div id="mbOutput" class="small" style="margin-top:.4rem;"></div>
 </div>
 
-<!-- PERFORMANCE & SAFETY -->
+<!-- ============ PERFORMANCE & SAFETY ============ -->
 <div class="card">
   <h2>Performance &amp; Safety altitude (Reggio Emilia)</h2>
   <p class="small">
-    Usa T/QNH/vento (da METAR LIMP o inseriti a mano) e <strong>ultimo peso calcolato</strong> per stimare
+    Usa T/QNH/vento (da METAR DEPT o inseriti a mano) e <strong>ultimo peso calcolato</strong> per stimare
     safety altitude turnback e distanze di decollo. Se non hai ancora calcolato la M&amp;B, assume 2300 lb (MTOW).
   </p>
+
   <div class="grid">
     <div>
-      <label for="temp">Temperatura aria (°C)</label>
-      <input id="temp" type="number" value="15" />
+      <label for="perfTemp">Temperatura aria (°C)</label>
+      <input id="perfTemp" type="number" value="15" />
     </div>
     <div>
-      <label for="qnh">QNH (hPa)</label>
-      <input id="qnh" type="number" value="1013" />
+      <label for="perfQnh">QNH (hPa)</label>
+      <input id="perfQnh" type="number" value="1013" />
     </div>
     <div>
-      <label for="windDir">Direzione vento FROM (°)</label>
-      <input id="windDir" type="number" placeholder="080" />
+      <label for="perfWindDir">Direzione vento FROM (°)</label>
+      <input id="perfWindDir" type="number" placeholder="080" />
     </div>
     <div>
-      <label for="windSpeed">Intensità vento (kt)</label>
-      <input id="windSpeed" type="number" placeholder="8" />
+      <label for="perfWindSpeed">Intensità vento (kt)</label>
+      <input id="perfWindSpeed" type="number" placeholder="8" />
     </div>
     <div>
       <label for="runway">Pista</label>
@@ -170,6 +228,7 @@
       </select>
     </div>
   </div>
+
   <button class="btn secondary" onclick="calcPerformance()">Calcola performance + safety</button>
 
   <div id="perfBlock" style="display:none;">
@@ -192,16 +251,22 @@
 </div>
 
 <script>
-/* =================== VARIABILI GLOBALI =================== */
+/* ========== GLOBALI ========== */
 let AIRPORTS_IT = null;
-let lastWeightLb = 2300;   // default MTOW
+let lastWeightLb = 2300; // default MTOW
+
+// C172M real aircraft (dal nuovo libretto)
+const EMPTY_WEIGHT_LB    = 1518.56;  // lb
+const EMPTY_MOMENT_INLB  = 60750;    // in·lb
+
+// Token AVWX (inserito da te)
 const AVWX_TOKEN = 'Z40mhXflUZEQ_xWPCMktcJz5kXX9mBAdBJsY_Jsv6wc';
 
-/* =================== HELPER GENERICI =================== */
+/* ========== HELPER ========== */
 function deg2rad(d){ return d * Math.PI / 180; }
 function rad2deg(r){ return r * 180 / Math.PI; }
 
-/* =================== CARICAMENTO AIRPORTS =================== */
+/* ========== CARICAMENTO AIRPORTS ========== */
 async function loadAirports() {
   if (AIRPORTS_IT) return;
   try {
@@ -240,7 +305,7 @@ function parseAirportsCsv(csv) {
   return db;
 }
 
-/* =================== GEODESIA + VENTO =================== */
+/* ========== GEODESIA + VENTO ========== */
 function gcDistanceAndTrack(lat1, lon1, lat2, lon2) {
   const R_nm = 3440.065;
   const φ1 = deg2rad(lat1), φ2 = deg2rad(lat2);
@@ -266,7 +331,6 @@ function trueToMag(tc){
   return mag;
 }
 
-// scelta livello pressione in base a quota
 function choosePressureLevel(cruiseAltFt) {
   if (cruiseAltFt < 4000)  return { level:"900", approx:"~3000 ft" };
   if (cruiseAltFt < 7000)  return { level:"800", approx:"~6000 ft" };
@@ -274,7 +338,6 @@ function choosePressureLevel(cruiseAltFt) {
   return { level:"600", approx:"~14000 ft" };
 }
 
-// vento in cruise da Open-Meteo GFS
 async function fetchCruiseWind(lat, lon, cruiseAltFt) {
   const cfg = choosePressureLevel(cruiseAltFt);
   const spdKey = "wind_speed_" + cfg.level + "hPa";
@@ -304,7 +367,7 @@ async function fetchCruiseWind(lat, lon, cruiseAltFt) {
   };
 }
 
-// correzione vento (vento dato come FROM)
+// vento dato come FROM
 function windCorrection(courseDeg, tas, windFromDeg, windSpd) {
   const beta = deg2rad(windFromDeg - courseDeg);
   const ratio = windSpd / tas;
@@ -316,7 +379,7 @@ function windCorrection(courseDeg, tas, windFromDeg, windSpd) {
   return { driftDeg, headingDeg, gs };
 }
 
-/* =================== METAR via AVWX =================== */
+/* ========== METAR via AVWX ========== */
 async function fetchMetarText(icao) {
   if (!AVWX_TOKEN) return null;
   try {
@@ -339,55 +402,96 @@ async function fetchMetarText(icao) {
   }
 }
 
-/* =================== METAR LIMP -> PERFORMANCE =================== */
-async function loadMetarLIMP() {
-  const box = document.getElementById('metarLimpBox');
-  box.style.color = '#444';
-  box.textContent = 'Caricamento METAR LIMP...';
+/* ========== METAR DEPT DINAMICO ========== */
+async function loadMetarDept() {
+  const depInput = document.getElementById('depIcao');
+  const destInput = document.getElementById('destIcao');
+  const metarBox = document.getElementById('metarDeptText');
+  const stationLabel = document.getElementById('metarStationLabel');
 
-  const raw = await fetchMetarText('LIMP');
-  if (!raw) {
-    box.style.color = '#b00020';
-    box.textContent = 'METAR LIMP non disponibile.';
+  if (!AVWX_TOKEN) {
+    alert('AVWX_TOKEN non impostato nel codice.');
     return;
   }
 
-  box.style.color = '#111';
-  box.textContent = raw;
+  const dep = (depInput?.value || 'LIDE').trim().toUpperCase() || 'LIDE';
+  const dest = (destInput?.value || '').trim().toUpperCase();
 
-  // Parsing molto semplice: T/Td + QNH + vento
-  const t = raw.toUpperCase();
+  const tryList = [];
+  if (dep === 'LIDE') {
+    tryList.push('LIMP');
+  } else {
+    tryList.push(dep);
+  }
+  if (dest && !tryList.includes(dest)) tryList.push(dest);
+  if (!tryList.includes('LIMP')) tryList.push('LIMP');
 
-  const tempRe = /\s(M?\d{2})\/(M?\d{2})\s/;
-  const qnhRe  = /Q(\d{4})/;
-  const wRe    = /\s(\d{3})(\d{2,3})KT/;
+  let metarRaw = null;
+  let usedStation = null;
 
-  function parseTempPart(p){
-    if (!p) return null;
-    p = p.trim();
-    let neg = false;
-    if (p[0] === 'M') { neg = true; p = p.slice(1); }
-    const n = parseInt(p,10);
-    if (isNaN(n)) return null;
-    return neg ? -n : n;
+  for (const icao of tryList) {
+    const raw = await fetchMetarText(icao);
+    if (raw) {
+      metarRaw = raw;
+      usedStation = icao;
+      break;
+    }
   }
 
-  const tMatch = t.match(tempRe);
-  const qMatch = t.match(qnhRe);
-  const wMatch = t.match(wRe);
+  if (!metarRaw) {
+    metarBox.value = '';
+    stationLabel.textContent = 'Nessuna stazione METAR trovata';
+    alert('Impossibile recuperare un METAR per DEP/DEST. Controlla la connessione o il token AVWX.');
+    return;
+  }
 
-  const temp = tMatch ? parseTempPart(tMatch[1]) : null;
-  const qnh  = qMatch ? parseInt(qMatch[1],10) : null;
-  const wDir = wMatch ? parseInt(wMatch[1],10) : null;
-  const wSpd = wMatch ? parseInt(wMatch[2],10) : null;
+  metarBox.value = metarRaw;
+  stationLabel.textContent = usedStation + ' (via AVWX)';
 
-  if (temp !== null) document.getElementById('temp').value = temp.toFixed(1);
-  if (!isNaN(qnh))   document.getElementById('qnh').value  = qnh;
-  if (!isNaN(wDir))  document.getElementById('windDir').value   = wDir;
-  if (!isNaN(wSpd))  document.getElementById('windSpeed').value = wSpd;
+  applyMetarToPerformance(metarRaw);
 }
 
-/* =================== METAR ALONG ROUTE =================== */
+function applyMetarToPerformance(raw) {
+  if (!raw || typeof raw !== 'string') return;
+  const t = raw.toUpperCase();
+
+  // es. 15/08 o M03/M07
+  let tempC = null;
+  const tempMatch = t.match(/ (\-?M?\d{2})\/(M?\d{2}) /);
+  if (tempMatch) {
+    let ts = tempMatch[1];
+    if (ts.startsWith('M')) ts = '-' + ts.slice(1);
+    tempC = parseInt(ts,10);
+  }
+
+  // QNH es. Q1018
+  let qnh = null;
+  const qMatch = t.match(/ Q(\d{4})/);
+  if (qMatch) qnh = parseInt(qMatch[1],10);
+
+  // Vento es. 08008KT o VRB03KT
+  let windDir = null;
+  let windSpd = null;
+  const wMatch = t.match(/ (VRB|\d{3})(\d{2})KT/);
+  if (wMatch) {
+    if (wMatch[1] !== 'VRB') windDir = parseInt(wMatch[1],10);
+    windSpd = parseInt(wMatch[2],10);
+  }
+
+  const tField   = document.getElementById('perfTemp');
+  const qField   = document.getElementById('perfQnh');
+  const wdField  = document.getElementById('perfWindDir');
+  const wsField  = document.getElementById('perfWindSpeed');
+
+  if (tField && tempC !== null && !Number.isNaN(tempC))  tField.value = tempC;
+  if (qField && qnh   !== null && !Number.isNaN(qnh))    qField.value = qnh;
+  if (wdField && windDir !== null && !Number.isNaN(windDir))
+    wdField.value = windDir.toString().padStart(3,'0');
+  if (wsField && windSpd !== null && !Number.isNaN(windSpd))
+    wsField.value = windSpd;
+}
+
+/* ========== METAR lungo rotta (solo aeroporti con METAR) ========== */
 function findMetarAlongRoute(dep, dest, maxDistNm) {
   if (!AIRPORTS_IT) return [];
   const R_nm = 3440.065;
@@ -433,98 +537,37 @@ function findMetarAlongRoute(dep, dest, maxDistNm) {
   return out.slice(0,15);
 }
 
-/* =================== ROUTE MAIN =================== */
-  /* =================== NOTAM DEP/DEST/ENROUTE =================== */
-async function loadNotams() {
-  const out = document.getElementById('notamOutput');
-  out.textContent = '';
-
-  // assicuriamoci di avere il DB aeroporti
-  await loadAirports();
-  if (!AIRPORTS_IT) {
-    out.textContent = 'Impossibile caricare airports_it.csv.';
-    return;
-  }
-
-  const depId  = document.getElementById('depIcao').value.trim().toUpperCase();
-  const destId = document.getElementById('destIcao').value.trim().toUpperCase();
+/* ========== NOTAM stringa info ========== */
+function updateNotamRouteInfo(depId, destId, enrouteList) {
+  const p = document.getElementById('notamRouteInfo');
+  if (!p) return;
 
   if (!depId || !destId) {
-    out.textContent = 'Inserisci prima DEP e DEST nella sezione Route.';
+    p.textContent = 'Nessuna rotta calcolata. Calcola prima la rotta (DEP/DEST).';
     return;
   }
 
-  const dep  = AIRPORTS_IT[depId];
-  const dest = AIRPORTS_IT[destId];
+  const extra = (enrouteList && enrouteList.length)
+    ? ' / enroute: ' + enrouteList.map(a => a.icao).join(', ')
+    : '';
 
-  if (!dep || !dest) {
-    out.textContent = 'DEP/DEST non trovati in airports_it.csv.';
-    return;
-  }
-
-  if (!AVWX_TOKEN) {
-    out.textContent = 'AVWX_TOKEN non impostato: impossibile caricare i NOTAM.';
-    return;
-  }
-
-  // aeroporti enroute entro 25 NM (stesso criterio dei METAR)
-  const enrouteAirfields = findMetarAlongRoute(dep, dest, 25);
-
-  // lista ICAO unica: DEP + DEST + enroute
-  const icaos = [];
-  function addIcao(id) {
-    if (id && !icaos.includes(id)) icaos.push(id);
-  }
-  addIcao(depId);
-  addIcao(destId);
-  enrouteAirfields.forEach(s => addIcao(s.icao));
-
-  if (!icaos.length) {
-    out.textContent = 'Nessun aerodromo su cui cercare NOTAM.';
-    return;
-  }
-
-  let text = 'NOTAM via AVWX (uso didattico)\n\n';
-
-  for (const icao of icaos) {
-    text += `*** ${icao} ***\n`;
-    try {
-      const url =
-        'https://avwx.rest/api/notam/' +
-        encodeURIComponent(icao) +
-        '?format=json&token=' +
-        encodeURIComponent(AVWX_TOKEN);
-
-      const res = await fetch(url);
-      if (!res.ok) {
-        text += `(errore HTTP ${res.status})\n\n`;
-        continue;
-      }
-
-      const arr = await res.json();
-      if (!arr || !arr.length) {
-        text += '(nessun NOTAM trovato)\n\n';
-        continue;
-      }
-
-      const max = Math.min(arr.length, 5); // per non esplodere di testo
-      for (let i = 0; i < max; i++) {
-        const n = arr[i];
-        const raw =
-          n.raw ||
-          (Array.isArray(n.text) ? n.text.join(' ') : '(testo NOTAM non disponibile)');
-        text += `- ${raw}\n\n`;
-      }
-    } catch (e) {
-      console.error('Errore NOTAM', icao, e);
-      text += '(errore nel caricamento)\n\n';
-    }
-  }
-
-  text += '---\nNota: elenco limitato ai primi NOTAM per ogni aerodromo (MAX 5).';
-  out.textContent = text;
+  p.textContent = `Rotta per NOTAM: DEP ${depId} → DEST ${destId}${extra}`;
 }
-  
+
+function copyNotamRoute() {
+  const p = document.getElementById('notamRouteInfo');
+  if (!p) return;
+  const text = p.textContent || '';
+  if (!navigator.clipboard) {
+    alert('Clipboard non disponibile, copia a mano:\n\n' + text);
+    return;
+  }
+  navigator.clipboard.writeText(text)
+    .then(() => alert('Stringa NOTAM copiata negli appunti.'))
+    .catch(() => alert('Impossibile copiare negli appunti, copia a mano:\n\n' + text));
+}
+
+/* ========== ROUTE MAIN ========== */
 async function computeRoute() {
   const out = document.getElementById('routeOutput');
   out.textContent = '';
@@ -625,40 +668,13 @@ async function computeRoute() {
   txt += `GS stimata: ${gs.toFixed(1)} kt\n\n`;
   txt += `EET ≈ ${eetMin} min   ETA: ${etaStr}\n\n`;
   txt += tocText + '\n' + todText + '\n';
-function updateNotamRouteInfo(depId, destId, enrouteList) {
-  const p = document.getElementById('notamRouteInfo');
-  if (!p) return;
 
-  if (!depId || !destId) {
-    p.textContent = 'Nessuna rotta calcolata. Calcola prima la rotta (DEP/DEST).';
-    return;
-  }
-
-  const extra = (enrouteList && enrouteList.length)
-    ? ' / enroute: ' + enrouteList.map(a => a.icao).join(', ')
-    : '';
-
-  p.textContent = `Rotta per NOTAM: DEP ${depId} → DEST ${destId}${extra}`;
-}
-
-// permette di copiare la stringa negli appunti
-function copyNotamRoute() {
-  const p = document.getElementById('notamRouteInfo');
-  if (!p) return;
-  const text = p.textContent || '';
-  if (!navigator.clipboard) {
-    alert('Clipboard non disponibile, copia a mano:\n\n' + text);
-    return;
-  }
-  navigator.clipboard.writeText(text)
-    .then(() => alert('Stringa NOTAM copiata negli appunti.'))
-    .catch(() => alert('Impossibile copiare negli appunti, copia a mano:\n\n' + text));
-}
-  // METAR lungo rotta
+  // aeroporti entro 25 NM e METAR disponibili
   const metarStations = findMetarAlongRoute(dep, dest, 25);
+  updateNotamRouteInfo(depId, destId, metarStations);
 
   if (metarStations.length && AVWX_TOKEN) {
-    txt += `\nMETAR (aeroporti entro ~25 NM dalla rotta):\n`;
+    txt += `\nMETAR (aeroporti entro ~25 NM dalla rotta, solo se disponibili):\n`;
     let anyMetar = false;
 
     for (const s of metarStations) {
@@ -680,11 +696,10 @@ function copyNotamRoute() {
   }
 
   txt += `\nNota: vento modellistico Open-Meteo e METAR via AVWX (uso didattico).`;
-
   out.textContent = txt;
 }
 
-/* =================== MASS & BALANCE =================== */
+/* ========== MASS & BALANCE ========== */
 function calcMassBalance() {
   const pilot = parseFloat(document.getElementById('mbPilot').value) || 0;
   const paxF  = parseFloat(document.getElementById('mbPaxFront').value) || 0;
@@ -696,26 +711,20 @@ function calcMassBalance() {
   const arms = { pilot:37, paxR:73, bag1:95, bag2:123, fuel:48 };
   const fuelLb = fuelG * 6;
 
-  const ew = 1392, ewMom = 54600;
-
-  const wPilot = pilot;
-  const wPaxF  = paxF;
-  const wPaxR  = paxR;
-  const wBag1  = bag1;
-  const wBag2  = bag2;
-  const wFuel  = fuelLb;
+  const ew    = EMPTY_WEIGHT_LB;
+  const ewMom = EMPTY_MOMENT_INLB;
 
   const totalW =
-    ew + wPilot + wPaxF + wPaxR + wBag1 + wBag2 + wFuel;
+    ew + pilot + paxF + paxR + bag1 + bag2 + fuelLb;
 
   const totalM =
     ewMom +
-    wPilot*arms.pilot +
-    wPaxF*arms.pilot +
-    wPaxR*arms.paxR +
-    wBag1*arms.bag1 +
-    wBag2*arms.bag2 +
-    wFuel*arms.fuel;
+    pilot*arms.pilot +
+    paxF*arms.pilot +
+    paxR*arms.paxR +
+    bag1*arms.bag1 +
+    bag2*arms.bag2 +
+    fuelLb*arms.fuel;
 
   const cg = totalM / totalW;
 
@@ -736,17 +745,17 @@ ${mtowMsg}`;
   document.getElementById('mbOutput').textContent = txt;
 }
 
-/* =================== PERFORMANCE & SAFETY =================== */
+/* ========== PERFORMANCE & SAFETY ALT ========== */
 function calcPerformance() {
-  const temp = parseFloat(document.getElementById('temp').value);
-  const qnh  = parseFloat(document.getElementById('qnh').value);
-  const windDir = parseFloat(document.getElementById('windDir').value);
-  const windSpd = parseFloat(document.getElementById('windSpeed').value);
+  const temp = parseFloat(document.getElementById('perfTemp').value);
+  const qnh  = parseFloat(document.getElementById('perfQnh').value);
+  const windDir = parseFloat(document.getElementById('perfWindDir').value);
+  const windSpd = parseFloat(document.getElementById('perfWindSpeed').value);
   const runway  = document.getElementById('runway').value;
   const units   = document.getElementById('units').value;
 
   if ([temp,qnh,windDir,windSpd].some(v => isNaN(v))) {
-    alert('Inserisci T, QNH, vento (dir/int) o carica il METAR LIMP.');
+    alert('Inserisci T, QNH, vento (dir/int) o carica il METAR DEPT.');
     return;
   }
 
@@ -803,7 +812,8 @@ function calcPerformance() {
   const safetySuggested = Math.max(baseSafety, safetyRounded);
 
   const unitsLabel = units === 'ft' ? 'ft' : 'm';
-  const conv = v => units === 'ft' ? Math.round(v) : Math.round(v*0.3048*10)/10;
+  const conv = v => units === 'ft' ? Math.round(v)
+                                   : Math.round(v*0.3048*10)/10;
 
   const safText =
     `Safety altitude teorica (peso ≈ ${Math.round(weight)} lb): ${safetyRounded} ft AGL.
@@ -852,7 +862,7 @@ Roll adj ≈ ${Math.round(rollAdj_ft)} ft
   document.getElementById('perfBlock').style.display = 'block';
 }
 
-/* =================== RUNWAY SVG =================== */
+/* ========== RUNWAY SVG ========== */
 function drawRunwayDiagram(roll_ft, fifty_ft, rwy_ft, units) {
   const svg = document.getElementById('runwaySvg');
   const center = svg.querySelector('#centerline');
@@ -922,10 +932,10 @@ function drawRunwayDiagram(roll_ft, fifty_ft, rwy_ft, units) {
   addLabel(`${Math.round(rwy_ft)} ft RWY`, marginLeft+usableW/2, 170, 'middle');
 }
 
-/* =================== WX CHART BUTTON =================== */
+/* ========== WX CHART BUTTON ========== */
 function openSwllMeteoAM() {
-  // Sostituisci l'URL con la pagina SWLL che usi abitualmente
-  const url = 'https://www.meteoam.it/'; 
+  // URL generale MeteoAM (puoi sostituirlo con il link diretto alla SWLL che usi tu)
+  const url = 'https://www.meteoam.it';
   window.open(url, '_blank');
 }
 </script>
