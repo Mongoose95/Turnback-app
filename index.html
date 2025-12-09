@@ -138,7 +138,7 @@
   <h2>Mass &amp; Balance — C172M</h2>
   <p class="small">
     Dati standard: empty weight <b>1518.56 lb</b>, momento <b>60 750 in·lb</b>.<br>
-    Bracci (ARM) indicativi: pilota/pax front 37", pax rear 73", bag 1 95", bag 2 123", fuel 48". Fuel 6 lb/USG.
+    Bracci (ARM) indicativi: pilota/pax front 37", pax rear 73", bag 1 95", bag 2 123", fuel 48". Fuel 9,5 lb/USG.
   </p>
   <div class="grid">
     <div>
@@ -661,7 +661,7 @@ function calcMassBalance() {
   const bag2  = parseFloat(document.getElementById('mbBag2').value) || 0;
 
   const arms = { pilot:37, paxR:73, bag1:95, bag2:123, fuel:48 };
-  const fuelLb = fuelG * 6;
+  const fuelLb = fuelG *6;
 
   const ew    = 1518.56;
   const ewMom = 60750;
