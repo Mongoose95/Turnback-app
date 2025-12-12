@@ -4,8 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>C172M — Route, Turnback Safety, T/O &amp; Mass &amp; Balance</title>
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+
   <style>
-    body { font-family: -apple-system, system-ui, sans-serif; margin:0; padding:1rem; color:#111; }
+    body { font-family:-apple-system,system-ui,sans-serif; margin:0; padding:1rem; color:#111; }
     h1 { font-size:1.2rem; margin:0 0 .4rem 0; }
     h2 { font-size:1rem; margin:0 0 .3rem 0; }
     .card { border:1px solid #ddd; border-radius:8px; padding:.8rem; margin-bottom:1rem; box-shadow:0 1px 3px rgba(0,0,0,.06); }
@@ -13,8 +20,8 @@
     @media (max-width:650px){ .grid{ grid-template-columns:1fr; } }
     label { display:block; margin-top:.4rem; font-size:.9rem; }
     input, textarea, select, button { width:100%; padding:.4rem; margin-top:.15rem; font-size:1rem; box-sizing:border-box; }
-    textarea { min-height:3rem; font-family:-apple-system, system-ui, sans-serif; }
-    .btn { border:none; border-radius:6px; padding:.55rem; cursor:pointer; margin-top:.6rem; text-align:center; text-decoration:none; display:inline-block; }
+    textarea { min-height:3rem; font-family:-apple-system,system-ui,sans-serif; }
+    .btn { border:none; border-radius:6px; padding:.55rem; cursor:pointer; margin-top:.6rem; text-decoration:none; display:inline-block; text-align:center; }
     .primary { background:#0b6efd; color:#fff; }
     .secondary { background:#e9ecef; color:#111; }
     .danger { background:#dc3545; color:#fff; }
@@ -23,20 +30,8 @@
     .warning { font-size:.8rem; color:#b00020; margin-top:.5rem; }
     pre { font-size:.8rem; white-space:pre-wrap; margin-top:.3rem; }
     svg { width:100%; height:170px; background:#fafafa; border-radius:6px; margin-top:.4rem; }
+    #map { width:100%; height:260px; border-radius:8px; margin-top:.4rem; }
   </style>
-
-  <!-- Leaflet per la mappa rotta -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
 </head>
 <body>
 <h1>C172M — Route, Turnback Safety, T/O &amp; Mass &amp; Balance (Reggio Emilia)</h1>
@@ -60,7 +55,7 @@
     </div>
     <div>
       <label for="destIcao">Destination ICAO</label>
-      <input id="destIcao" type="text" placeholder="LILE" />
+      <input id="destIcao" type="text" placeholder="LIMP" />
     </div>
     <div>
       <label for="tasCruise">TAS cruise (kt)</label>
@@ -83,24 +78,17 @@
   <button class="btn primary" onclick="computeRoute()">Calcola rotta</button>
   <pre id="routeOutput"></pre>
 
-  <label for="routeText" class="small" style="margin-top:.6rem;">
-    Descrizione rotta (punti VFR, P/B/D da VOR, ecc.)
+  <label for="routeDescr" class="small" style="margin-top:.6rem;">
+    Descrizione rotta (punti VFR, P/B/D da VOR, ecc.) — es: <code>LIDE MPSE1 MPE1 LIMP</code>
   </label>
-  <textarea
-    id="routeText"
-    placeholder="Esempi:
-LIDE LIPO LILE
-LIDE VIA BZO 180/15 LILE
-LIDE BZO180/15 LILE"
-  ></textarea>
+  <textarea id="routeDescr" placeholder="LIDE MPSE1 MPE1 LIMP"></textarea>
 
-  <div
-    id="routeMap"
-    style="height:300px; margin-top:.6rem; border-radius:6px; overflow:hidden;"
-  ></div>
+  <div id="map"></div>
   <p class="small">
-    Mappa base OSM, non è una carta aeronautica ufficiale. Solo per addestramento.
+    Mappa orientativa basata su tiles aeronautici (non per navigazione reale).
   </p>
+
+  <pre id="legsOutput" class="small"></pre>
 </div>
 
 <!-- ==================== NOTAM (SOLO LINK UFFICIALI) ==================== -->
@@ -127,6 +115,26 @@ LIDE BZO180/15 LILE"
       Apri ricerca NOTAM su Desk Aeronautico
     </a>
   </div>
+
+  <div style="margin-top:.5rem;">
+    <a class="btn secondary"
+       href="https://www.enav.it"
+       target="_blank"
+       rel="noopener">
+      Apri ENAV / AIP Italia
+    </a>
+    <a class="btn secondary"
+       href="https://www.ead.eurocontrol.int"
+       target="_blank"
+       rel="noopener">
+      Apri Eurocontrol EAD Basic
+    </a>
+  </div>
+
+  <p class="small" style="margin-top:.5rem;">
+    Suggerimento: incolla la stringa ICAO nei campi di ricerca dei NOTAM (DEP, DEST,
+    enroute/FIR) nei portali ufficiali.
+  </p>
 </div>
 
 <!-- ==================== METAR DEPT/DEST ==================== -->
@@ -169,7 +177,7 @@ LIDE BZO180/15 LILE"
   <h2>WX Chart — LOW LEVEL ITALY (MeteoAM SWLL)</h2>
   <p class="small">
     Apri la carta significativa del tempo a bassi livelli (SWLL, suolo–FL100)
-    per l’area Italia dal sito ufficiale MeteoAM.
+    per l&rsquo;area Italia dal sito ufficiale MeteoAM.
   </p>
   <button class="btn secondary" onclick="openSwllMeteoAM()">
     Apri WX Chart — LOW LEVEL ITALY (SWLL)
@@ -273,31 +281,19 @@ LIDE BZO180/15 LILE"
   </div>
 </div>
 
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <script>
 /* =================== VARIABILI GLOBALI =================== */
 let AIRPORTS_IT = null;
 let lastWeightLb = 2300;   // default MTOW
 const AVWX_TOKEN = 'Z40mhXflUZEQ_xWPCMktcJz5kXX9mBAdBJsY_Jsv6wc';
 
-// dizionario VOR di esempio (aggiungi i tuoi qui)
-const VOR_DB = {
-  // coordinate indicative/didattiche
-  BZO: { name: 'BOLZANO VOR/DME', lat: 46.4603, lon: 11.3264 }
-  // es: RBO: { name:'ROVIGO VOR/DME', lat: 45.xxxx, lon: 11.xxxx }
-};
-
-// dizionario VFR point opzionale (modificabile)
-const VFR_POINTS = {
-  // Esempio:
-  // 'VFR1': { lat: 44.7000, lon: 10.6500 }
-};
-
-// mappa rotta
-let routeMap = null;
+/* Map globals */
+let map = null;
 let routeLine = null;
-let depMarker = null;
-let destMarker = null;
-let extraWpMarkers = [];
+let markersLayer = null;
 
 /* =================== HELPER GENERICI =================== */
 function deg2rad(d){ return d * Math.PI / 180; }
@@ -366,27 +362,6 @@ function trueToMag(tc){
   let mag = tc - 3;
   if (mag < 0) mag += 360;
   return mag;
-}
-
-// proiezione da punto noto a distanza/bearing (sphere, nm)
-function projectPoint(lat, lon, bearingDeg, distNm) {
-  const R_nm = 3440.065;
-  const φ1 = deg2rad(lat);
-  const λ1 = deg2rad(lon);
-  const θ  = deg2rad(bearingDeg);
-  const d  = distNm / R_nm; // distanza angolare in radianti
-
-  const sinφ1 = Math.sin(φ1), cosφ1 = Math.cos(φ1);
-  const sinD  = Math.sin(d),   cosD  = Math.cos(d);
-
-  const sinφ2 = sinφ1*cosD + cosφ1*sinD*Math.cos(θ);
-  const φ2 = Math.asin(sinφ2);
-
-  const y = Math.sin(θ)*sinD*cosφ1;
-  const x = cosD - sinφ1*sinφ2;
-  const λ2 = λ1 + Math.atan2(y, x);
-
-  return { lat: rad2deg(φ2), lon: rad2deg(λ2) };
 }
 
 // scelta livello pressione in base a quota
@@ -530,13 +505,12 @@ async function loadMetar(kind) {
   labelSpan.textContent = icao;
   textArea.value = raw;
 
-  // solo il METAR DEP aggiorna i campi Performance
   if (kind === 'dep') {
     parseMetarAndFillPerf(raw);
   }
 }
 
-/* =================== AIRPORTS ENTRO 25 NM (per NOTAM string) =================== */
+/* =================== AIRPORTS ENTRO 25 NM =================== */
 function findEnrouteAirfields(dep, dest, maxDistNm) {
   if (!AIRPORTS_IT) return [];
   const R_nm = 3440.065;
@@ -582,151 +556,56 @@ function findEnrouteAirfields(dep, dest, maxDistNm) {
   return out.slice(0,15);
 }
 
-/* =================== PARSE ROUTE TEXT (VFR, P/B/D, ICAO) =================== */
-function parseRouteText(text, dep, dest) {
-  if (!text) return [];
-  const tokens = text.split(/\s+/).filter(Boolean);
-  const wpts = [];
+/* =================== MAP INIT & DRAW =================== */
+function initMap() {
+  if (map) return;
+  // centro approssimato su nord Italia / Reggio
+  map = L.map('map').setView([44.7, 10.6], 8);
 
-  for (let i = 0; i < tokens.length; i++) {
-    let tRaw = tokens[i];
-    let t = tRaw.toUpperCase().replace(/[,;]+$/,''); // tolgo virgole/punti finali
-    if (!t) continue;
-
-    // parole "rumore"
-    if (t === 'VIA' || t === 'DCT') continue;
-
-    // formato combinato: BZO180/15
-    let m = t.match(/^([A-Z0-9]{3})(\d{3})\/(\d{1,3})$/);
-    if (m) {
-      const vorId = m[1];
-      const brg = parseInt(m[2],10);
-      const dist = parseFloat(m[3]);
-      const vor = VOR_DB[vorId];
-      if (vor && !isNaN(brg) && !isNaN(dist)) {
-        const pt = projectPoint(vor.lat, vor.lon, brg, dist);
-        wpts.push({ name: `${vorId} ${brg}/${dist}`, lat: pt.lat, lon: pt.lon });
-      }
-      continue;
+  // ATTENZIONE: URL tiles aeronautici da verificare sul provider (OpenFlightMaps / openAIP ecc.)
+  // Sostituisci con l'URL corretto e rispetta i termini d'uso (NON per navigazione reale).
+  const aeroTiles = L.tileLayer(
+    'https://{s}.tile.openflightmaps.org/OFM/{z}/{x}/{y}.png',
+    {
+      maxZoom: 12,
+      attribution: '© OpenFlightMaps / OSM — solo uso didattico, non per navigazione reale'
     }
+  );
+  aeroTiles.addTo(map);
 
-    // formato separato: BZO 180/15
-    if (/^[A-Z0-9]{3}$/.test(t) && i+1 < tokens.length) {
-      const nextRaw = tokens[i+1].toUpperCase();
-      const m2 = nextRaw.match(/^(\d{3})\/(\d{1,3})$/);
-      if (m2) {
-        const vorId = t;
-        const brg = parseInt(m2[1],10);
-        const dist = parseFloat(m2[2]);
-        const vor = VOR_DB[vorId];
-        if (vor && !isNaN(brg) && !isNaN(dist)) {
-          const pt = projectPoint(vor.lat, vor.lon, brg, dist);
-          wpts.push({ name: `${vorId} ${brg}/${dist}`, lat: pt.lat, lon: pt.lon });
-        }
-        i++; // salto il token distanza appena usato
-        continue;
-      }
-    }
-
-    // ICAO intermedio (4 lettere) se presente nel DB aeroporti
-    if (/^[A-Z]{4}$/.test(t) && AIRPORTS_IT && AIRPORTS_IT[t]) {
-      const ap = AIRPORTS_IT[t];
-      // li aggiungo comunque, filtrerò eventuali duplicati di DEP/DEST dopo
-      wpts.push({ name: t, lat: ap.lat, lon: ap.lon, icao: t });
-      continue;
-    }
-
-    // VFR point da dizionario
-    if (VFR_POINTS[t]) {
-      const vp = VFR_POINTS[t];
-      wpts.push({ name: t, lat: vp.lat, lon: vp.lon, type:'VFR' });
-      continue;
-    }
-
-    // VOR nudo come waypoint (overhead VOR)
-    if (VOR_DB[t]) {
-      const vor = VOR_DB[t];
-      wpts.push({ name: t, lat: vor.lat, lon: vor.lon, type:'VOR' });
-      continue;
-    }
-
-    // altri token ignorati solo per la mappa, restano nel testo
-  }
-
-  // rimozione duplicati per nome (grossolana ma sufficiente per uso didattico)
-  const dedup = [];
-  for (const p of wpts) {
-    if (!dedup.some(q => q.name === p.name)) dedup.push(p);
-  }
-
-  // NON includo qui dep/dest; li aggiungo nella updateRouteMap
-  return dedup;
+  markersLayer = L.layerGroup().addTo(map);
 }
 
-/* =================== MAPPA ROTTA (Leaflet) =================== */
-function initRouteMap() {
-  if (routeMap) return;
+function drawRouteOnMap(waypoints) {
+  if (!waypoints || waypoints.length < 2) return;
+  initMap();
 
-  routeMap = L.map('routeMap');
-
-  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 12,
-    attribution: '&copy; OpenStreetMap contributors'
-  });
-  osm.addTo(routeMap);
-
-  // vista iniziale Nord Italia (circa Reggio Emilia)
-  routeMap.setView([44.7, 10.6], 7);
-}
-
-function updateRouteMap(dep, dest, extraPoints) {
-  initRouteMap();
-
-  // costruisco lista punti in ordine: DEP -> extra -> DEST
-  const pts = [];
-  pts.push({ name:`DEP ${dep.icao}`, lat:dep.lat, lon:dep.lon, role:'DEP' });
-
-  if (extraPoints && extraPoints.length) {
-    extraPoints.forEach(p => {
-      // evito di ri-aggiungere stessi ICAO di DEP/DEST
-      if (p.icao === dep.icao || p.icao === dest.icao) return;
-      pts.push(p);
-    });
+  if (routeLine) {
+    map.removeLayer(routeLine);
+    routeLine = null;
+  }
+  if (markersLayer) {
+    markersLayer.clearLayers();
   }
 
-  pts.push({ name:`DEST ${dest.icao}`, lat:dest.lat, lon:dest.lon, role:'DEST' });
-
-  const latlngs = pts.map(p => [p.lat, p.lon]);
-
-  // pulizia layer precedenti
-  if (routeLine) routeMap.removeLayer(routeLine);
-  if (depMarker) routeMap.removeLayer(depMarker);
-  if (destMarker) routeMap.removeLayer(destMarker);
-  extraWpMarkers.forEach(m => routeMap.removeLayer(m));
-  extraWpMarkers = [];
-
-  // nuova polyline
-  routeLine = L.polyline(latlngs, { weight:3 }).addTo(routeMap);
-
-  // marker DEP/DEST
-  depMarker = L.marker([dep.lat, dep.lon]).addTo(routeMap).bindPopup('DEP ' + dep.icao);
-  destMarker = L.marker([dest.lat, dest.lon]).addTo(routeMap).bindPopup('DEST ' + dest.icao);
-
-  // marker intermedi (cerchietti)
-  pts.forEach(p => {
-    if (p.role) return; // salta dep/dest
-    const m = L.circleMarker([p.lat, p.lon], { radius:5 });
-    m.addTo(routeMap).bindPopup(p.name || 'WP');
-    extraWpMarkers.push(m);
+  const latlngs = [];
+  waypoints.forEach(wp => {
+    const ll = [wp.lat, wp.lon];
+    latlngs.push(ll);
+    const m = L.marker(ll).addTo(markersLayer);
+    m.bindPopup(wp.name);
   });
 
-  routeMap.fitBounds(routeLine.getBounds().pad(0.3));
+  routeLine = L.polyline(latlngs, { color: 'red' }).addTo(map);
+  map.fitBounds(routeLine.getBounds(), { padding:[20,20] });
 }
 
 /* =================== ROUTE MAIN =================== */
 async function computeRoute() {
   const out = document.getElementById('routeOutput');
+  const legsOut = document.getElementById('legsOutput');
   out.textContent = '';
+  legsOut.textContent = '';
 
   await loadAirports();
   if (!AIRPORTS_IT) return;
@@ -813,7 +692,6 @@ async function computeRoute() {
     todText = 'TOD: nessuna discesa (cruise ≤ circuit alt DEST)';
   }
 
-  // aerodromi entro 25 NM per la stringa NOTAM
   const enroute = findEnrouteAirfields(dep, dest, 25);
 
   let txt = '';
@@ -841,13 +719,45 @@ async function computeRoute() {
 
   out.textContent = txt;
 
-  // aggiorna sezione NOTAM
-  updateNotamRouteInfo(depId, destId, enroute);
+  // Waypoints sintetici dalla descrizione rotta
+  const routeDescr = (document.getElementById('routeDescr').value || '').trim();
+  const midNames = routeDescr ? routeDescr.split(/\s+/).filter(Boolean) : [];
 
-  // parse routeText per WP intermedi e aggiorna mappa
-  const routeText = document.getElementById('routeText').value || '';
-  const extraPts = parseRouteText(routeText, dep, dest);
-  updateRouteMap(dep, dest, extraPts);
+  const waypoints = [];
+  waypoints.push({ name: depId, lat: dep.lat, lon: dep.lon });
+
+  const n = midNames.length;
+  for (let i = 0; i < n; i++) {
+    const f = (i+1)/(n+1); // frazione lungo linea dep-dest
+    const lat = dep.lat + f*(dest.lat - dep.lat);
+    const lon = dep.lon + f*(dest.lon - dep.lon);
+    waypoints.push({ name: midNames[i], lat, lon });
+  }
+
+  waypoints.push({ name: destId, lat: dest.lat, lon: dest.lon });
+
+  // Legs report
+  if (waypoints.length >= 2) {
+    let legsTxt = 'Legs approssimati (waypoints distribuiti lungo la linea diretto):\n';
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const A = waypoints[i];
+      const B = waypoints[i+1];
+      const leg = gcDistanceAndTrack(A.lat, A.lon, B.lat, B.lon);
+      const dLeg = leg.distNm;
+      const trkT = leg.trackTrue;
+      const trkM = trueToMag(trkT);
+      const legTimeMin = gs > 0 ? dLeg / gs * 60 : NaN;
+      legsTxt += `${A.name} → ${B.name}: ${dLeg.toFixed(1)} NM, TRK ${trkT.toFixed(0)}°T / ${trkM.toFixed(0)}°M`;
+      if (!isNaN(legTimeMin)) {
+        legsTxt += `, EET ≈ ${legTimeMin.toFixed(0)} min`;
+      }
+      legsTxt += '\n';
+    }
+    legsOut.textContent = legsTxt;
+  }
+
+  drawRouteOnMap(waypoints);
+  updateNotamRouteInfo(depId, destId, enroute);
 }
 
 /* =================== NOTAM STRING =================== */
@@ -867,7 +777,6 @@ function updateNotamRouteInfo(depId, destId, enrouteList) {
   p.textContent = `Rotta per NOTAM: DEP ${depId} → DEST ${destId}${extra}`;
 }
 
-// copia la stringa NOTAM negli appunti
 function copyNotamRoute() {
   const p = document.getElementById('notamRouteInfo');
   if (!p) return;
@@ -891,7 +800,7 @@ function calcMassBalance() {
   const bag2  = parseFloat(document.getElementById('mbBag2').value) || 0;
 
   const arms = { pilot:37, paxR:73, bag1:95, bag2:123, fuel:48 };
-  const fuelLb = fuelG * 6; // 6 lb/USG standard C172
+  const fuelLb = fuelG * 6;
 
   const ew    = 1518.56;
   const ewMom = 60750;
@@ -925,7 +834,7 @@ function calcMassBalance() {
   const mtowMsg = totalW > 2300 ? 'ATTENZIONE: oltre MTOW (2300 lb).' : 'Peso ≤ MTOW.';
 
   const txt =
-`Peso totale stimato: ${Math.round(totalW)} lb
+    `Peso totale stimato: ${Math.round(totalW)} lb
 CG stimato: ${cg.toFixed(1)} in
 Fuel: ${fuelG.toFixed(1)} USG (${Math.round(fuelLb)} lb)
 ${cgMsg}
@@ -1004,7 +913,7 @@ function calcPerformance() {
   const conv = v => units === 'ft' ? Math.round(v) : Math.round(v*0.3048*10)/10;
 
   const safText =
-`Safety altitude teorica (peso ≈ ${Math.round(weight)} lb): ${safetyRounded} ft AGL.
+    `Safety altitude teorica (peso ≈ ${Math.round(weight)} lb): ${safetyRounded} ft AGL.
 Minimo operativo suggerito: ${safetySuggested} ft AGL (standard Reggio ${baseSafety} ft).`;
 
   document.getElementById('safetyAltText').textContent = safText;
@@ -1067,7 +976,6 @@ function drawRunwayDiagram(roll_ft, fifty_ft, rwy_ft, units) {
   const rollPx  = Math.max(8, Math.min(roll_ft,  rwy_ft)*pxPerFt);
   const fiftyPx = Math.min(fifty_ft, rwy_ft)*pxPerFt;
 
-  // centerline
   let x = marginLeft+8;
   const dash = 14, gap = 10;
   while (x < marginLeft+usableW-8) {
@@ -1125,6 +1033,9 @@ function openSwllMeteoAM() {
   const url = 'https://www.meteoam.it/it/swll';
   window.open(url, '_blank');
 }
+
+// init mappa base all'avvio
+document.addEventListener('DOMContentLoaded', initMap);
 </script>
 </body>
 </html>
