@@ -16,6 +16,7 @@
       </div>
       <div class="status-panel" aria-live="polite">
         <span id="clock">--:--</span>
+        <span id="utcClock">--:-- UTC</span>
         <span id="refreshStatus">Loading briefing...</span>
       </div>
     </header>
@@ -108,6 +109,33 @@
         </div>
         <pre id="tafText">Loading TAF...</pre>
       </article>
+    </section>
+
+    <section class="notam-panel" aria-label="NOTAM LIDE and LIMP">
+      <div class="panel-header">
+        <h2>NOTAM Today</h2>
+        <span id="notamUpdated">Online official sources</span>
+      </div>
+      <div class="notam-grid">
+        <article class="notam-card">
+          <h3>LIDE</h3>
+          <p>Reggio Emilia. Open current NOTAM search and verify active notices for today.</p>
+          <a href="https://notams.aim.faa.gov/notamSearch/?actionType=notamRetrievalByICAOs&formatType=ICAO&method=displayByICAOs&reportType=REPORT&retrieveLocId=LIDE" target="_blank" rel="noopener">Open LIDE NOTAM</a>
+        </article>
+        <article class="notam-card">
+          <h3>LIMP</h3>
+          <p>Parma. Open current NOTAM search and verify active notices for today.</p>
+          <a href="https://notams.aim.faa.gov/notamSearch/?actionType=notamRetrievalByICAOs&formatType=ICAO&method=displayByICAOs&reportType=REPORT&retrieveLocId=LIMP" target="_blank" rel="noopener">Open LIMP NOTAM</a>
+        </article>
+        <article class="notam-card">
+          <h3>Italy Backup</h3>
+          <p>Use official Italian sources if FAA search is unavailable or incomplete.</p>
+          <div class="link-row">
+            <a href="https://www.deskaeronautico.it/cerca-notam/" target="_blank" rel="noopener">Desk</a>
+            <a href="https://www.enav.it" target="_blank" rel="noopener">ENAV</a>
+          </div>
+        </article>
+      </div>
     </section>
 
     <section class="details">

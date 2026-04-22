@@ -93,6 +93,12 @@ h2 {
   line-height: 1;
 }
 
+#utcClock {
+  color: var(--green);
+  font-size: 1.05rem;
+  font-weight: 850;
+}
+
 #refreshStatus {
   color: var(--muted);
   text-align: right;
@@ -230,13 +236,65 @@ h2 {
 }
 
 .weather-panel,
-.swll-panel {
+.swll-panel,
+.notam-panel {
   padding: 18px;
   min-width: 0;
 }
 
-.swll-panel {
+.swll-panel,
+.notam-panel {
   margin-top: 14px;
+}
+
+.notam-panel,
+.notam-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: var(--shadow);
+}
+
+.notam-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.notam-card {
+  padding: 16px;
+  box-shadow: none;
+}
+
+.notam-card h3 {
+  margin: 0 0 6px;
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
+.notam-card p {
+  margin-bottom: 14px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.notam-card a {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--green);
+  color: #fff;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .panel-header {
@@ -309,7 +367,8 @@ footer {
   .hero,
   .runway-band,
   .weather-grid,
-  .details {
+  .details,
+  .notam-grid {
     grid-template-columns: 1fr;
   }
 

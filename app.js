@@ -24,6 +24,7 @@ function pad(value) {
 function updateClock() {
   const now = new Date();
   el("clock").textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  el("utcClock").textContent = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())} UTC`;
 }
 
 function degToRad(deg) {
@@ -307,11 +308,12 @@ function updateWindArrow(windDir) {
     return;
   }
 
+  const blowingTo = normalizeDegrees(windDir + 180);
   arrow.style.opacity = "1";
-  arrow.style.transform = `rotate(${normalizeDegrees(windDir + 180)}deg)`;
+  arrow.style.transform = `rotate(${blowingTo}deg)`;
   label.textContent = Number.isFinite(windSpeed)
-    ? `${Math.round(windDir).toString().padStart(3, "0")} deg / ${Math.round(windSpeed)} kt`
-    : `${Math.round(windDir).toString().padStart(3, "0")} deg`;
+    ? `to ${Math.round(blowingTo).toString().padStart(3, "0")} deg / ${Math.round(windSpeed)} kt`
+    : `to ${Math.round(blowingTo).toString().padStart(3, "0")} deg`;
 }
 
 function renderBriefing() {
