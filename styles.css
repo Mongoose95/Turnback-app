@@ -153,6 +153,13 @@ h2 {
   color: var(--blue);
 }
 
+.qnh-line {
+  color: var(--ink);
+  font-size: 1.45rem;
+  font-weight: 900;
+  line-height: 1.05;
+}
+
 .runway-tile .big-number {
   color: var(--green);
 }

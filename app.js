@@ -345,6 +345,7 @@ function renderBriefing() {
     el("windValue").textContent = "--";
     el("windDetail").textContent = "Surface wind unavailable";
   }
+  el("qnhValue").textContent = Number.isFinite(qnhHpa) ? `QNH ${qnhHpa}` : "QNH --";
 
   el("runwayValue").textContent = runway.runway;
   el("runwayDetail").textContent = runway.calm
