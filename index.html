@@ -1,1041 +1,131 @@
-<!DOCTYPE html>
-<html lang="it">
+<!doctype html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>C172M — Route, Turnback Safety, T/O &amp; Mass &amp; Balance</title>
-
-  <!-- Leaflet CSS -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
-
-  <style>
-    body { font-family:-apple-system,system-ui,sans-serif; margin:0; padding:1rem; color:#111; }
-    h1 { font-size:1.2rem; margin:0 0 .4rem 0; }
-    h2 { font-size:1rem; margin:0 0 .3rem 0; }
-    .card { border:1px solid #ddd; border-radius:8px; padding:.8rem; margin-bottom:1rem; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-    .grid { display:grid; grid-template-columns:1fr 1fr; gap:.5rem .8rem; }
-    @media (max-width:650px){ .grid{ grid-template-columns:1fr; } }
-    label { display:block; margin-top:.4rem; font-size:.9rem; }
-    input, textarea, select, button { width:100%; padding:.4rem; margin-top:.15rem; font-size:1rem; box-sizing:border-box; }
-    textarea { min-height:3rem; font-family:-apple-system,system-ui,sans-serif; }
-    .btn { border:none; border-radius:6px; padding:.55rem; cursor:pointer; margin-top:.6rem; text-decoration:none; display:inline-block; text-align:center; }
-    .primary { background:#0b6efd; color:#fff; }
-    .secondary { background:#e9ecef; color:#111; }
-    .danger { background:#dc3545; color:#fff; }
-    .small { font-size:.85rem; color:#444; }
-    .result { margin-top:.5rem; font-weight:600; }
-    .warning { font-size:.8rem; color:#b00020; margin-top:.5rem; }
-    pre { font-size:.8rem; white-space:pre-wrap; margin-top:.3rem; }
-    svg { width:100%; height:170px; background:#fafafa; border-radius:6px; margin-top:.4rem; }
-    #map { width:100%; height:260px; border-radius:8px; margin-top:.4rem; }
-  </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LIDE Wx</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<h1>C172M — Route, Turnback Safety, T/O &amp; Mass &amp; Balance (Reggio Emilia)</h1>
-<p class="small">
-  Campo: Reggio Emilia (elev 152 ft). Aereo: C172M MTOW 2300 lb, best glide 65 kt, bank max 30°.<br>
-  <strong>USO DIDATTICO — non per decisioni operative reali.</strong>
-</p>
-
-<!-- ==================== ROUTE PLANNING ==================== -->
-<div class="card">
-  <h2>Route planning (Italy — direct)</h2>
-  <p class="small">
-    Dept/Dest per tutti gli aeroporti Italia (da <code>airports_it.csv</code>).<br>
-    Vento in cruise dal modello GFS (Open-Meteo) sul punto medio rotta.
-  </p>
-
-  <div class="grid">
-    <div>
-      <label for="depIcao">Departure ICAO</label>
-      <input id="depIcao" type="text" placeholder="LIDE" />
-    </div>
-    <div>
-      <label for="destIcao">Destination ICAO</label>
-      <input id="destIcao" type="text" placeholder="LIMP" />
-    </div>
-    <div>
-      <label for="tasCruise">TAS cruise (kt)</label>
-      <input id="tasCruise" type="number" value="100" />
-    </div>
-    <div>
-      <label for="cruiseAlt">Cruise altitude (ft AMSL)</label>
-      <input id="cruiseAlt" type="number" value="3000" />
-    </div>
-    <div>
-      <label for="offBlockTime">Off-block time (HH:MM locale)</label>
-      <input id="offBlockTime" type="text" value="16:00" />
-    </div>
-    <div>
-      <label for="circuitHeight">Circuit height above field (ft)</label>
-      <input id="circuitHeight" type="number" value="1000" />
-    </div>
-  </div>
-
-  <button class="btn primary" onclick="computeRoute()">Calcola rotta</button>
-  <pre id="routeOutput"></pre>
-
-  <label for="routeDescr" class="small" style="margin-top:.6rem;">
-    Descrizione rotta (punti VFR, P/B/D da VOR, ecc.) — es: <code>LIDE MPSE1 MPE1 LIMP</code>
-  </label>
-  <textarea id="routeDescr" placeholder="LIDE MPSE1 MPE1 LIMP"></textarea>
-
-  <div id="map"></div>
-  <p class="small">
-    Mappa orientativa basata su tiles aeronautici (non per navigazione reale).
-  </p>
-
-  <pre id="legsOutput" class="small"></pre>
-</div>
-
-<!-- ==================== NOTAM (SOLO LINK UFFICIALI) ==================== -->
-<div class="card">
-  <h2>NOTAM — briefing (fonti ufficiali)</h2>
-  <p class="small">
-    L’app non scarica NOTAM via API (limitazioni tecniche/costi).<br>
-    Usa i link qui sotto per aprire i sistemi ufficiali, con i codici della tua rotta già pronti.
-  </p>
-
-  <p class="small" id="notamRouteInfo">
-    Nessuna rotta calcolata. Calcola prima la rotta (DEP/DEST).
-  </p>
-
-  <button class="btn secondary" onclick="copyNotamRoute()">
-    Copia stringa ICAO per NOTAM
-  </button>
-
-  <div style="margin-top:.5rem;">
-    <a class="btn danger"
-       href="https://www.deskaeronautico.it/cerca-notam/"
-       target="_blank"
-       rel="noopener">
-      Apri ricerca NOTAM su Desk Aeronautico
-    </a>
-  </div>
-
-  <div style="margin-top:.5rem;">
-    <a class="btn secondary"
-       href="https://www.enav.it"
-       target="_blank"
-       rel="noopener">
-      Apri ENAV / AIP Italia
-    </a>
-    <a class="btn secondary"
-       href="https://www.ead.eurocontrol.int"
-       target="_blank"
-       rel="noopener">
-      Apri Eurocontrol EAD Basic
-    </a>
-  </div>
-
-  <p class="small" style="margin-top:.5rem;">
-    Suggerimento: incolla la stringa ICAO nei campi di ricerca dei NOTAM (DEP, DEST,
-    enroute/FIR) nei portali ufficiali.
-  </p>
-</div>
-
-<!-- ==================== METAR DEPT/DEST ==================== -->
-<div class="card">
-  <h2>METAR — DEPT / DEST (AVWX)</h2>
-  <p class="small">
-    Recupera i METAR via AVWX (richiede connessione internet).<br>
-    Logica DEP:
-    <br>• se DEP = <b>LIDE</b> (Reggio Emilia) → usa METAR <b>LIMP</b> (Parma)
-    <br>• se DEP ≠ LIDE → usa METAR dell’aeroporto di DEP
-    <br>• se nessun METAR disponibile → messaggio di errore, niente fallback.<br><br>
-    Il METAR DEP, se valido, viene usato anche per compilare automaticamente
-    <strong>T / QNH / vento</strong> nella sezione Performance &amp; Safety.
-  </p>
-
-  <div class="grid">
-    <div>
-      <p class="small">
-        METAR DEP (stazione: <span id="metarDepStation">–</span>)
-      </p>
-      <textarea id="metarDepText" rows="3" style="font-family:monospace;"></textarea>
-      <button class="btn secondary" onclick="loadMetar('dep')">
-        Scarica METAR DEP
-      </button>
-    </div>
-    <div>
-      <p class="small">
-        METAR DEST (stazione: <span id="metarDestStation">–</span>)
-      </p>
-      <textarea id="metarDestText" rows="3" style="font-family:monospace;"></textarea>
-      <button class="btn secondary" onclick="loadMetar('dest')">
-        Scarica METAR DEST
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- ==================== WX CHART ==================== -->
-<div class="card">
-  <h2>WX Chart — LOW LEVEL ITALY (MeteoAM SWLL)</h2>
-  <p class="small">
-    Apri la carta significativa del tempo a bassi livelli (SWLL, suolo–FL100)
-    per l&rsquo;area Italia dal sito ufficiale MeteoAM.
-  </p>
-  <button class="btn secondary" onclick="openSwllMeteoAM()">
-    Apri WX Chart — LOW LEVEL ITALY (SWLL)
-  </button>
-</div>
-
-<!-- ==================== MASS & BALANCE ==================== -->
-<div class="card">
-  <h2>Mass &amp; Balance — C172M</h2>
-  <p class="small">
-    Dati standard: empty weight <b>1518.56 lb</b>, momento <b>60 750 in·lb</b>.<br>
-    Bracci (ARM) indicativi: pilota/pax front 37", pax rear 73", bag 1 95", bag 2 123", fuel 48". Fuel 6 lb/USG.
-  </p>
-  <div class="grid">
-    <div>
-      <label for="mbPilot">Pilota (lb)</label>
-      <input id="mbPilot" type="number" />
-    </div>
-    <div>
-      <label for="mbPaxFront">Pax anteriore (lb)</label>
-      <input id="mbPaxFront" type="number" />
-    </div>
-    <div>
-      <label for="mbPaxRear">Pax posteriori tot (lb)</label>
-      <input id="mbPaxRear" type="number" />
-    </div>
-    <div>
-      <label for="mbFuel">Fuel utilizzabile (USG)</label>
-      <input id="mbFuel" type="number" />
-    </div>
-    <div>
-      <label for="mbBag1">Bag area 1 (lb, max 120)</label>
-      <input id="mbBag1" type="number" />
-    </div>
-    <div>
-      <label for="mbBag2">Bag area 2 (lb, max 40)</label>
-      <input id="mbBag2" type="number" />
-    </div>
-  </div>
-  <button class="btn primary" onclick="calcMassBalance()">Calcola M&amp;B</button>
-  <div id="mbOutput" class="small" style="margin-top:.4rem;"></div>
-</div>
-
-<!-- ==================== PERFORMANCE & SAFETY ==================== -->
-<div class="card">
-  <h2>Performance &amp; Safety altitude (Reggio Emilia)</h2>
-  <p class="small">
-    Usa T/QNH/vento (da METAR o inseriti a mano) e <strong>ultimo peso calcolato</strong> per stimare
-    safety altitude turnback e distanze di decollo. Se non hai ancora calcolato la M&amp;B, assume 2300 lb (MTOW).
-  </p>
-  <div class="grid">
-    <div>
-      <label for="temp">Temperatura aria (°C)</label>
-      <input id="temp" type="number" value="15" />
-    </div>
-    <div>
-      <label for="qnh">QNH (hPa)</label>
-      <input id="qnh" type="number" value="1013" />
-    </div>
-    <div>
-      <label for="windDir">Direzione vento FROM (°)</label>
-      <input id="windDir" type="number" placeholder="080" />
-    </div>
-    <div>
-      <label for="windSpeed">Intensità vento (kt)</label>
-      <input id="windSpeed" type="number" placeholder="8" />
-    </div>
-    <div>
-      <label for="runway">Pista</label>
-      <select id="runway">
-        <option value="11">RWY 11 (109°)</option>
-        <option value="29">RWY 29 (289°)</option>
-      </select>
-    </div>
-    <div>
-      <label for="units">Unità distanza</label>
-      <select id="units">
-        <option value="ft">ft</option>
-        <option value="m">m</option>
-      </select>
-    </div>
-  </div>
-  <button class="btn secondary" onclick="calcPerformance()">Calcola performance + safety</button>
-
-  <div id="perfBlock" style="display:none;">
-    <div id="safetyAltText" class="result"></div>
-    <div id="commentText" class="small" style="margin-top:.3rem;"></div>
-    <div class="small" id="distanceText" style="margin-top:.4rem;"></div>
-
-    <svg id="runwaySvg" viewBox="0 0 1000 200" preserveAspectRatio="xMidYMid meet">
-      <rect x="20" y="70" width="960" height="60" rx="6" fill="#222" opacity="0.05"></rect>
-      <g id="centerline"></g>
-      <g id="markers"></g>
-      <g id="labels"></g>
-    </svg>
-
-    <pre id="calcDetails"></pre>
-    <div class="warning">
-      TOOL DIDATTICO — sempre verificare con POH/AFM e con un istruttore.
-    </div>
-  </div>
-</div>
-
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<script>
-/* =================== VARIABILI GLOBALI =================== */
-let AIRPORTS_IT = null;
-let lastWeightLb = 2300;   // default MTOW
-const AVWX_TOKEN = 'Z40mhXflUZEQ_xWPCMktcJz5kXX9mBAdBJsY_Jsv6wc';
-
-/* Map globals */
-let map = null;
-let routeLine = null;
-let markersLayer = null;
-
-/* =================== HELPER GENERICI =================== */
-function deg2rad(d){ return d * Math.PI / 180; }
-function rad2deg(r){ return r * 180 / Math.PI; }
-
-/* =================== CARICAMENTO AIRPORTS =================== */
-async function loadAirports() {
-  if (AIRPORTS_IT) return;
-  try {
-    const res = await fetch('airports_it.csv');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const text = await res.text();
-    AIRPORTS_IT = parseAirportsCsv(text);
-  } catch (e) {
-    console.error('Errore airports_it.csv', e);
-    alert('Impossibile caricare airports_it.csv (controlla che sia nel repo).');
-  }
-}
-
-function parseAirportsCsv(csv) {
-  const lines = csv.split(/\r?\n/).filter(l => l.trim().length);
-  const header = lines.shift().split(',');
-  const idxIcao = header.indexOf('icao');
-  const idxName = header.indexOf('name');
-  const idxLat  = header.indexOf('lat');
-  const idxLon  = header.indexOf('lon');
-  const idxElev = header.indexOf('elev_ft');
-  const db = {};
-  lines.forEach(line => {
-    const p = line.split(',');
-    if (p.length < 5) return;
-    const icao = p[idxIcao].trim().toUpperCase();
-    if (!icao) return;
-    db[icao] = {
-      icao,
-      name: p[idxName].trim(),
-      lat: parseFloat(p[idxLat]),
-      lon: parseFloat(p[idxLon]),
-      elev_ft: parseFloat(p[idxElev]) || 0
-    };
-  });
-  return db;
-}
-
-/* =================== GEODESIA + VENTO =================== */
-function gcDistanceAndTrack(lat1, lon1, lat2, lon2) {
-  const R_nm = 3440.065;
-  const φ1 = deg2rad(lat1), φ2 = deg2rad(lat2);
-  const Δφ = deg2rad(lat2 - lat1);
-  const Δλ = deg2rad(lon2 - lon1);
-
-  const a = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  const distNm = R_nm * c;
-
-  const y = Math.sin(Δλ)*Math.cos(φ2);
-  const x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
-  let track = rad2deg(Math.atan2(y,x));
-  if (track < 0) track += 360;
-
-  return { distNm, trackTrue: track };
-}
-
-// mag var approx Italia: 3°E → MAG = TRUE - 3
-function trueToMag(tc){
-  let mag = tc - 3;
-  if (mag < 0) mag += 360;
-  return mag;
-}
-
-// scelta livello pressione in base a quota
-function choosePressureLevel(cruiseAltFt) {
-  if (cruiseAltFt < 4000)  return { level:"900", approx:"~3000 ft" };
-  if (cruiseAltFt < 7000)  return { level:"800", approx:"~6000 ft" };
-  if (cruiseAltFt < 11000) return { level:"700", approx:"~10000 ft" };
-  return { level:"600", approx:"~14000 ft" };
-}
-
-// vento in cruise da Open-Meteo GFS
-async function fetchCruiseWind(lat, lon, cruiseAltFt) {
-  const cfg = choosePressureLevel(cruiseAltFt);
-  const spdKey = "wind_speed_" + cfg.level + "hPa";
-  const dirKey = "wind_direction_" + cfg.level + "hPa";
-
-  const url =
-    "https://api.open-meteo.com/v1/gfs" +
-    "?latitude=" + lat.toFixed(4) +
-    "&longitude=" + lon.toFixed(4) +
-    "&hourly=" + spdKey + "," + dirKey +
-    "&forecast_hours=1&wind_speed_unit=kn";
-
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Open-Meteo HTTP " + res.status);
-  const data = await res.json();
-  const h = data.hourly || {};
-  const spdArr = h[spdKey];
-  const dirArr = h[dirKey];
-  if (!spdArr || !dirArr || !spdArr.length || !dirArr.length) {
-    throw new Error("dati vento mancanti");
-  }
-  return {
-    windSpd: spdArr[0],
-    windDir: dirArr[0],
-    level: cfg.level,
-    approxAlt: cfg.approx
-  };
-}
-
-// correzione vento (vento dato come FROM)
-function windCorrection(courseDeg, tas, windFromDeg, windSpd) {
-  const beta = deg2rad(windFromDeg - courseDeg);
-  const ratio = windSpd / tas;
-  const sinDrift = ratio * Math.sin(beta);
-  const driftRad = Math.asin(Math.max(-1, Math.min(1, sinDrift)));
-  const driftDeg = rad2deg(driftRad);
-  const headingDeg = (courseDeg + driftDeg + 360) % 360;
-  const gs = tas * Math.cos(driftRad) - windSpd * Math.cos(beta);
-  return { driftDeg, headingDeg, gs };
-}
-
-/* =================== METAR via AVWX =================== */
-async function fetchMetarText(icao) {
-  if (!AVWX_TOKEN) return null;
-  try {
-    const url =
-      'https://avwx.rest/api/metar/' +
-      encodeURIComponent(icao) +
-      '?format=json&token=' +
-      encodeURIComponent(AVWX_TOKEN);
-
-    const res = await fetch(url);
-    if (!res.ok) {
-      console.warn('AVWX HTTP', res.status, 'per', icao);
-      return null;
-    }
-    const data = await res.json();
-    return data.raw || null;
-  } catch (e) {
-    console.error('Errore METAR', icao, e);
-    return null;
-  }
-}
-
-// parsing T/QNH/vento da stringa METAR
-function parseMetarAndFillPerf(raw) {
-  if (!raw) return;
-
-  const t = raw.toUpperCase();
-  const tempRe = /\s(M?\d{2})\/(M?\d{2})\s/;
-  const qnhRe  = /Q(\d{4})/;
-  const wRe    = /\s(\d{3})(\d{2,3})KT/;
-
-  function parseTempPart(p){
-    if (!p) return null;
-    p = p.trim();
-    let neg = false;
-    if (p[0] === 'M') { neg = true; p = p.slice(1); }
-    const n = parseInt(p,10);
-    if (isNaN(n)) return null;
-    return neg ? -n : n;
-  }
-
-  const tMatch = t.match(tempRe);
-  const qMatch = t.match(qnhRe);
-  const wMatch = t.match(wRe);
-
-  const temp = tMatch ? parseTempPart(tMatch[1]) : null;
-  const qnh  = qMatch ? parseInt(qMatch[1],10) : null;
-  const wDir = wMatch ? parseInt(wMatch[1],10) : null;
-  const wSpd = wMatch ? parseInt(wMatch[2],10) : null;
-
-  if (temp !== null) document.getElementById('temp').value = temp.toFixed(1);
-  if (!isNaN(qnh))   document.getElementById('qnh').value  = qnh;
-  if (!isNaN(wDir))  document.getElementById('windDir').value   = wDir;
-  if (!isNaN(wSpd))  document.getElementById('windSpeed').value = wSpd;
-}
-
-/* =================== METAR DEPT/DEST BUTTONS =================== */
-async function loadMetar(kind) {
-  const depId  = (document.getElementById('depIcao').value || '').trim().toUpperCase();
-  const destId = (document.getElementById('destIcao').value || '').trim().toUpperCase();
-
-  let icao = null;
-  let labelSpan = null;
-  let textArea = null;
-
-  if (kind === 'dep') {
-    if (!depId) { alert('Inserisci prima il DEP nella sezione rotta.'); return; }
-    icao = (depId === 'LIDE') ? 'LIMP' : depId;
-    labelSpan = document.getElementById('metarDepStation');
-    textArea  = document.getElementById('metarDepText');
-  } else {
-    if (!destId) { alert('Inserisci prima il DEST nella sezione rotta.'); return; }
-    icao = destId;
-    labelSpan = document.getElementById('metarDestStation');
-    textArea  = document.getElementById('metarDestText');
-  }
-
-  labelSpan.textContent = icao + ' (caricamento...)';
-  textArea.value = 'Richiesta METAR ' + icao + '...';
-
-  const raw = await fetchMetarText(icao);
-  if (!raw) {
-    labelSpan.textContent = icao + ' (nessun METAR disponibile)';
-    textArea.value = 'METAR non disponibile per ' + icao + '.';
-    return;
-  }
-
-  labelSpan.textContent = icao;
-  textArea.value = raw;
-
-  if (kind === 'dep') {
-    parseMetarAndFillPerf(raw);
-  }
-}
-
-/* =================== AIRPORTS ENTRO 25 NM =================== */
-function findEnrouteAirfields(dep, dest, maxDistNm) {
-  if (!AIRPORTS_IT) return [];
-  const R_nm = 3440.065;
-  const lat0 = deg2rad((dep.lat + dest.lat)/2);
-  const lon0 = deg2rad((dep.lon + dest.lon)/2);
-
-  function toXY(lat, lon) {
-    const φ = deg2rad(lat), λ = deg2rad(lon);
-    const x = (λ - lon0) * Math.cos(lat0) * R_nm;
-    const y = (φ - lat0) * R_nm;
-    return { x, y };
-  }
-
-  const A = toXY(dep.lat, dep.lon);
-  const B = toXY(dest.lat, dest.lon);
-  const ABx = B.x - A.x;
-  const ABy = B.y - A.y;
-  const ab2 = ABx*ABx + ABy*ABy || 1;
-
-  const out = [];
-  for (const icao in AIRPORTS_IT) {
-    if (!AIRPORTS_IT.hasOwnProperty(icao)) continue;
-    const ap = AIRPORTS_IT[icao];
-    if (icao === dep.icao || icao === dest.icao) continue;
-
-    const P = toXY(ap.lat, ap.lon);
-    const APx = P.x - A.x;
-    const APy = P.y - A.y;
-    const t = (APx*ABx + APy*ABy) / ab2;
-    if (t < 0 || t > 1) continue;
-
-    const projx = A.x + t*ABx;
-    const projy = A.y + t*ABy;
-    const dx = P.x - projx;
-    const dy = P.y - projy;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist <= maxDistNm) {
-      out.push({ icao: ap.icao, name: ap.name, dist: dist, t: t });
-    }
-  }
-
-  out.sort((a,b) => a.t - b.t);
-  return out.slice(0,15);
-}
-
-/* =================== MAP INIT & DRAW =================== */
-function initMap() {
-  if (map) return;
-  // centro approssimato su nord Italia / Reggio
-  map = L.map('map').setView([44.7, 10.6], 8);
-
-  // ATTENZIONE: URL tiles aeronautici da verificare sul provider (OpenFlightMaps / openAIP ecc.)
-  // Sostituisci con l'URL corretto e rispetta i termini d'uso (NON per navigazione reale).
-  const aeroTiles = L.tileLayer(
-    'https://{s}.tile.openflightmaps.org/OFM/{z}/{x}/{y}.png',
-    {
-      maxZoom: 12,
-      attribution: '© OpenFlightMaps / OSM — solo uso didattico, non per navigazione reale'
-    }
-  );
-  aeroTiles.addTo(map);
-
-  markersLayer = L.layerGroup().addTo(map);
-}
-
-function drawRouteOnMap(waypoints) {
-  if (!waypoints || waypoints.length < 2) return;
-  initMap();
-
-  if (routeLine) {
-    map.removeLayer(routeLine);
-    routeLine = null;
-  }
-  if (markersLayer) {
-    markersLayer.clearLayers();
-  }
-
-  const latlngs = [];
-  waypoints.forEach(wp => {
-    const ll = [wp.lat, wp.lon];
-    latlngs.push(ll);
-    const m = L.marker(ll).addTo(markersLayer);
-    m.bindPopup(wp.name);
-  });
-
-  routeLine = L.polyline(latlngs, { color: 'red' }).addTo(map);
-  map.fitBounds(routeLine.getBounds(), { padding:[20,20] });
-}
-
-/* =================== ROUTE MAIN =================== */
-async function computeRoute() {
-  const out = document.getElementById('routeOutput');
-  const legsOut = document.getElementById('legsOutput');
-  out.textContent = '';
-  legsOut.textContent = '';
-
-  await loadAirports();
-  if (!AIRPORTS_IT) return;
-
-  const depId  = (document.getElementById('depIcao').value || '').trim().toUpperCase();
-  const destId = (document.getElementById('destIcao').value || '').trim().toUpperCase();
-  const tas = parseFloat(document.getElementById('tasCruise').value);
-  const cruiseAlt = parseFloat(document.getElementById('cruiseAlt').value);
-  const offBlockStr = (document.getElementById('offBlockTime').value || '').trim();
-  const circuitH = parseFloat(document.getElementById('circuitHeight').value) || 1000;
-
-  if (!depId || !destId || !tas || !cruiseAlt) {
-    out.textContent = 'Inserisci DEP, DEST, TAS e quota cruise.';
-    return;
-  }
-
-  const dep  = AIRPORTS_IT[depId];
-  const dest = AIRPORTS_IT[destId];
-  if (!dep || !dest) {
-    out.textContent = 'DEP/DEST non trovati in airports_it.csv.';
-    return;
-  }
-
-  const gc = gcDistanceAndTrack(dep.lat, dep.lon, dest.lat, dest.lon);
-  const distNm = gc.distNm;
-  const trackT = gc.trackTrue;
-  const trackM = trueToMag(trackT);
-
-  const midLat = (dep.lat + dest.lat)/2;
-  const midLon = (dep.lon + dest.lon)/2;
-
-  let windText, windDir, windSpd;
-  try {
-    const w = await fetchCruiseWind(midLat, midLon, cruiseAlt);
-    windDir = w.windDir;
-    windSpd = w.windSpd;
-    windText = `Wind (GFS Open-Meteo) @ ${w.approxAlt} (level ${w.level} hPa): FROM ≈ ${Math.round(windDir)}° / ${Math.round(windSpd)} kt`;
-  } catch (e) {
-    console.error(e);
-    windDir = 0;
-    windSpd = 0;
-    windText = 'ATTENZIONE: vento modello non disponibile, usato 0 kt.';
-  }
-
-  const wc = windCorrection(trackT, tas, windDir, windSpd);
-  const gs = Math.max(40, wc.gs);
-  const eetH = distNm / gs;
-  const eetMin = Math.round(eetH * 60);
-
-  let etaStr = 'n/a';
-  const m = offBlockStr.match(/^(\d{1,2}):(\d{2})$/);
-  if (m) {
-    let h = parseInt(m[1],10), min = parseInt(m[2],10);
-    let tot = h*60 + min + eetMin;
-    tot = ((tot%(24*60)) + 24*60)%(24*60);
-    const hh = Math.floor(tot/60);
-    const mm = tot%60;
-    etaStr = (''+hh).padStart(2,'0') + ':' + (''+mm).padStart(2,'0');
-  }
-
-  const depElev = dep.elev_ft || 0;
-  const destElev = dest.elev_ft || 0;
-  const circuitAlt = destElev + circuitH;
-
-  let tocText, todText;
-  const deltaClimb = Math.max(0, cruiseAlt - depElev);
-  if (deltaClimb > 0) {
-    const roc = 700;
-    const tMin = deltaClimb / roc;
-    const gsClimb = tas * 0.8;
-    const dNm = gsClimb * (tMin/60);
-    tocText = `TOC: +${Math.round(deltaClimb)} ft (~${tMin.toFixed(1)} min, ≈${dNm.toFixed(1)} NM da DEP)`;
-  } else {
-    tocText = 'TOC: nessuna salita (cruise ≤ elev DEP)';
-  }
-
-  const deltaDescent = Math.max(0, cruiseAlt - circuitAlt);
-  if (deltaDescent > 0) {
-    const rod = 500;
-    const tMin = deltaDescent / rod;
-    const dNm = tas * (tMin/60);
-    todText = `TOD: -${Math.round(deltaDescent)} ft (~${tMin.toFixed(1)} min, ≈${dNm.toFixed(1)} NM prima di DEST, per circuit alt ≈ ${Math.round(circuitAlt)} ft)`;
-  } else {
-    todText = 'TOD: nessuna discesa (cruise ≤ circuit alt DEST)';
-  }
-
-  const enroute = findEnrouteAirfields(dep, dest, 25);
-
-  let txt = '';
-  txt += `DEP: ${depId} (${dep.name}), elev ${Math.round(depElev)} ft\n`;
-  txt += `DEST: ${destId} (${dest.name}), elev ${Math.round(destElev)} ft\n\n`;
-  txt += `Distance (GC): ${distNm.toFixed(1)} NM\n`;
-  txt += `Track TRUE: ${trackT.toFixed(0)}°\n`;
-  txt += `Track MAG (~3°E): ${trackM.toFixed(0)}°\n\n`;
-  txt += windText + '\n';
-  txt += `Heading TRUE (wind corr): ${wc.headingDeg.toFixed(0)}° (drift ${wc.driftDeg.toFixed(1)}°)\n`;
-  txt += `GS stimata: ${gs.toFixed(1)} kt\n\n`;
-  txt += `EET ≈ ${eetMin} min   ETA: ${etaStr}\n\n`;
-  txt += tocText + '\n' + todText + '\n';
-
-  if (enroute.length) {
-    txt += '\nAerodromi entro ~25 NM dalla track (per NOTAM / METAR manuale):\n';
-    enroute.forEach(a => {
-      txt += `- ${a.icao} (${a.name}), offset ≈ ${a.dist.toFixed(1)} NM\n`;
-    });
-  } else {
-    txt += '\nNessun aerodromo entro 25 NM nel database.\n';
-  }
-
-  txt += '\nNota: vento modellistico Open-Meteo (uso didattico).\n';
-
-  out.textContent = txt;
-
-  // Waypoints sintetici dalla descrizione rotta
-  const routeDescr = (document.getElementById('routeDescr').value || '').trim();
-  const midNames = routeDescr ? routeDescr.split(/\s+/).filter(Boolean) : [];
-
-  const waypoints = [];
-  waypoints.push({ name: depId, lat: dep.lat, lon: dep.lon });
-
-  const n = midNames.length;
-  for (let i = 0; i < n; i++) {
-    const f = (i+1)/(n+1); // frazione lungo linea dep-dest
-    const lat = dep.lat + f*(dest.lat - dep.lat);
-    const lon = dep.lon + f*(dest.lon - dep.lon);
-    waypoints.push({ name: midNames[i], lat, lon });
-  }
-
-  waypoints.push({ name: destId, lat: dest.lat, lon: dest.lon });
-
-  // Legs report
-  if (waypoints.length >= 2) {
-    let legsTxt = 'Legs approssimati (waypoints distribuiti lungo la linea diretto):\n';
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      const A = waypoints[i];
-      const B = waypoints[i+1];
-      const leg = gcDistanceAndTrack(A.lat, A.lon, B.lat, B.lon);
-      const dLeg = leg.distNm;
-      const trkT = leg.trackTrue;
-      const trkM = trueToMag(trkT);
-      const legTimeMin = gs > 0 ? dLeg / gs * 60 : NaN;
-      legsTxt += `${A.name} → ${B.name}: ${dLeg.toFixed(1)} NM, TRK ${trkT.toFixed(0)}°T / ${trkM.toFixed(0)}°M`;
-      if (!isNaN(legTimeMin)) {
-        legsTxt += `, EET ≈ ${legTimeMin.toFixed(0)} min`;
-      }
-      legsTxt += '\n';
-    }
-    legsOut.textContent = legsTxt;
-  }
-
-  drawRouteOnMap(waypoints);
-  updateNotamRouteInfo(depId, destId, enroute);
-}
-
-/* =================== NOTAM STRING =================== */
-function updateNotamRouteInfo(depId, destId, enrouteList) {
-  const p = document.getElementById('notamRouteInfo');
-  if (!p) return;
-
-  if (!depId || !destId) {
-    p.textContent = 'Nessuna rotta calcolata. Calcola prima la rotta (DEP/DEST).';
-    return;
-  }
-
-  const extra = (enrouteList && enrouteList.length)
-    ? ' / enroute: ' + enrouteList.map(a => a.icao).join(', ')
-    : '';
-
-  p.textContent = `Rotta per NOTAM: DEP ${depId} → DEST ${destId}${extra}`;
-}
-
-function copyNotamRoute() {
-  const p = document.getElementById('notamRouteInfo');
-  if (!p) return;
-  const text = p.textContent || '';
-  if (!navigator.clipboard) {
-    alert('Clipboard non disponibile, copia a mano:\n\n' + text);
-    return;
-  }
-  navigator.clipboard.writeText(text)
-    .then(() => alert('Stringa NOTAM copiata negli appunti.'))
-    .catch(() => alert('Impossibile copiare negli appunti, copia a mano:\n\n' + text));
-}
-
-/* =================== MASS & BALANCE =================== */
-function calcMassBalance() {
-  const pilot = parseFloat(document.getElementById('mbPilot').value) || 0;
-  const paxF  = parseFloat(document.getElementById('mbPaxFront').value) || 0;
-  const paxR  = parseFloat(document.getElementById('mbPaxRear').value) || 0;
-  const fuelG = parseFloat(document.getElementById('mbFuel').value) || 0;
-  const bag1  = parseFloat(document.getElementById('mbBag1').value) || 0;
-  const bag2  = parseFloat(document.getElementById('mbBag2').value) || 0;
-
-  const arms = { pilot:37, paxR:73, bag1:95, bag2:123, fuel:48 };
-  const fuelLb = fuelG * 6;
-
-  const ew    = 1518.56;
-  const ewMom = 60750;
-
-  const wPilot = pilot;
-  const wPaxF  = paxF;
-  const wPaxR  = paxR;
-  const wBag1  = bag1;
-  const wBag2  = bag2;
-  const wFuel  = fuelLb;
-
-  const totalW =
-    ew + wPilot + wPaxF + wPaxR + wBag1 + wBag2 + wFuel;
-
-  const totalM =
-    ewMom +
-    wPilot*arms.pilot +
-    wPaxF*arms.pilot +
-    wPaxR*arms.paxR +
-    wBag1*arms.bag1 +
-    wBag2*arms.bag2 +
-    wFuel*arms.fuel;
-
-  const cg = totalM / totalW;
-
-  lastWeightLb = totalW;
-
-  let cgMsg = 'CG stimato dentro inviluppo approssimato (35"–47").';
-  if (cg < 35 || cg > 47) cgMsg = 'ATTENZIONE: CG stimato fuori inviluppo approssimato (35"–47").';
-
-  const mtowMsg = totalW > 2300 ? 'ATTENZIONE: oltre MTOW (2300 lb).' : 'Peso ≤ MTOW.';
-
-  const txt =
-    `Peso totale stimato: ${Math.round(totalW)} lb
-CG stimato: ${cg.toFixed(1)} in
-Fuel: ${fuelG.toFixed(1)} USG (${Math.round(fuelLb)} lb)
-${cgMsg}
-${mtowMsg}`;
-
-  document.getElementById('mbOutput').textContent = txt;
-}
-
-/* =================== PERFORMANCE & SAFETY =================== */
-function calcPerformance() {
-  const temp = parseFloat(document.getElementById('temp').value);
-  const qnh  = parseFloat(document.getElementById('qnh').value);
-  const windDir = parseFloat(document.getElementById('windDir').value);
-  const windSpd = parseFloat(document.getElementById('windSpeed').value);
-  const runway  = document.getElementById('runway').value;
-  const units   = document.getElementById('units').value;
-
-  if ([temp,qnh,windDir,windSpd].some(v => isNaN(v))) {
-    alert('Inserisci T, QNH, vento (dir/int) o scarica un METAR DEP.');
-    return;
-  }
-
-  const fieldElev = 152;
-  const baseSafety = 900;
-  const baseRoll = 835;
-  const base50  = 1475;
-  const rwyLen_m = 1210;
-  const rwyLen_ft = Math.round(rwyLen_m * 3.28084);
-  const weight = lastWeightLb || 2300;
-  const wRef = 2300;
-
-  const pa = fieldElev + (1013 - qnh)*30;
-  const isaT = 15 - 2*(fieldElev/1000);
-  const da = pa + 120*(temp - isaT);
-  const daDiff = da - fieldElev;
-
-  const daFactorSafety = 1 + 0.10*(daDiff/1000);
-  let daFactorDist = 1 + 0.12*(daDiff/1000);
-
-  let wFactorSafety = Math.min(1.2, Math.max(0.85, weight/wRef));
-  let wFactorDist   = Math.min(1.3, Math.max(0.7, (weight/wRef)*(weight/wRef)));
-
-  const rwyHeading = runway === '11' ? 109 : 289;
-  const ang = deg2rad(rwyHeading - windDir);
-  const headwind = windSpd * Math.cos(ang); // >0 headwind, <0 tailwind
-
-  let windFactorSafety = 1;
-  if (headwind < 0) {
-    const tail = -headwind;
-    windFactorSafety = 1 + 0.10*(tail/10);
-  } else {
-    const head = headwind;
-    windFactorSafety = 1 - 0.05*(head/10);
-    if (windFactorSafety < 0.8) windFactorSafety = 0.8;
-  }
-
-  let windFactorDist = 1;
-  if (headwind < 0) {
-    const tail = -headwind;
-    windFactorDist = 1 + 0.05*(tail/5);
-  } else {
-    const head = headwind;
-    windFactorDist = 1 - 0.05*(head/5);
-    if (windFactorDist < 0.7) windFactorDist = 0.7;
-  }
-
-  const distFactor = daFactorDist*windFactorDist*wFactorDist;
-  const rollAdj_ft = baseRoll*distFactor;
-  const fiftyAdj_ft= base50*distFactor;
-
-  const safetyCalc = baseSafety*daFactorSafety*windFactorSafety*wFactorSafety;
-  const safetyRounded = Math.round(safetyCalc/10)*10;
-  const safetySuggested = Math.max(baseSafety, safetyRounded);
-
-  const unitsLabel = units === 'ft' ? 'ft' : 'm';
-  const conv = v => units === 'ft' ? Math.round(v) : Math.round(v*0.3048*10)/10;
-
-  const safText =
-    `Safety altitude teorica (peso ≈ ${Math.round(weight)} lb): ${safetyRounded} ft AGL.
-Minimo operativo suggerito: ${safetySuggested} ft AGL (standard Reggio ${baseSafety} ft).`;
-
-  document.getElementById('safetyAltText').textContent = safText;
-
-  let comment;
-  if (safetyRounded <= baseSafety) {
-    comment = 'Teoricamente possibile una safety altitude uguale/inferiore allo standard. In addestramento mantieni comunque 900 ft come minima per il turnback.';
-  } else if (safetyRounded < 1100) {
-    comment = 'Safety altitude leggermente sopra lo standard: DA/vento/peso un po’ penalizzanti. Margini ridotti, valutare con istruttore.';
-  } else {
-    comment = 'Safety altitude alta: condizioni sfavorevoli (DA, tailwind e/o peso). Turnback poco consigliabile salvo training specifico.';
-  }
-  document.getElementById('commentText').textContent = comment;
-
-  const distText =
-`POH base (10°C, QNH 1013, no wind, 2300 lb):
-- Ground roll = ${baseRoll} ft (${Math.round(baseRoll*0.3048)} m)
-- 50 ft obstacle = ${base50} ft (${Math.round(base50*0.3048)} m)
-
-Corretto (DA≈${Math.round(da)} ft, headwind≈${headwind.toFixed(1)} kt, peso≈${Math.round(weight)} lb):
-- Ground roll ≈ ${conv(rollAdj_ft)} ${unitsLabel}
-- 50 ft obstacle ≈ ${conv(fiftyAdj_ft)} ${unitsLabel}
-Runway length: ${rwyLen_ft} ft (${rwyLen_m} m).`;
-
-  document.getElementById('distanceText').textContent = distText;
-
-  const details =
-`Pressure altitude ≈ ${Math.round(pa)} ft
-ISA temp campo ≈ ${isaT.toFixed(1)} °C
-Density altitude ≈ ${Math.round(da)} ft
-DA factor (dist) ≈ ${daFactorDist.toFixed(2)}
-Weight factor (dist) ≈ ${wFactorDist.toFixed(2)}
-Wind factor (dist) ≈ ${windFactorDist.toFixed(2)}
-Headwind effettivo ≈ ${headwind.toFixed(1)} kt
-DA factor (safety) ≈ ${daFactorSafety.toFixed(2)}
-Weight factor (safety) ≈ ${wFactorSafety.toFixed(2)}
-Wind factor (safety) ≈ ${windFactorSafety.toFixed(2)}
-Roll adj ≈ ${Math.round(rollAdj_ft)} ft
-50 ft adj ≈ ${Math.round(fiftyAdj_ft)} ft`;
-  document.getElementById('calcDetails').textContent = details;
-
-  drawRunwayDiagram(rollAdj_ft, fiftyAdj_ft, rwyLen_ft, units);
-  document.getElementById('perfBlock').style.display = 'block';
-}
-
-/* =================== RUNWAY SVG =================== */
-function drawRunwayDiagram(roll_ft, fifty_ft, rwy_ft, units) {
-  const svg = document.getElementById('runwaySvg');
-  const center = svg.querySelector('#centerline');
-  const markers= svg.querySelector('#markers');
-  const labels = svg.querySelector('#labels');
-  while (center.firstChild) center.removeChild(center.firstChild);
-  while (markers.firstChild) markers.removeChild(markers.firstChild);
-  while (labels.firstChild) labels.removeChild(labels.firstChild);
-
-  const marginLeft = 20;
-  const usableW = 960;
-  const pxPerFt = usableW / rwy_ft;
-
-  const rollPx  = Math.max(8, Math.min(roll_ft,  rwy_ft)*pxPerFt);
-  const fiftyPx = Math.min(fifty_ft, rwy_ft)*pxPerFt;
-
-  let x = marginLeft+8;
-  const dash = 14, gap = 10;
-  while (x < marginLeft+usableW-8) {
-    const l = document.createElementNS('http://www.w3.org/2000/svg','line');
-    l.setAttribute('x1', x); l.setAttribute('y1', 100);
-    l.setAttribute('x2', x+dash); l.setAttribute('y2', 100);
-    l.setAttribute('stroke', '#aaa'); l.setAttribute('stroke-width', '2');
-    center.appendChild(l);
-    x += dash+gap;
-  }
-
-  const rollRect = document.createElementNS('http://www.w3.org/2000/svg','rect');
-  rollRect.setAttribute('x', marginLeft+6);
-  rollRect.setAttribute('y', 58);
-  rollRect.setAttribute('width', rollPx);
-  rollRect.setAttribute('height', 24);
-  rollRect.setAttribute('fill', '#0b6efd');
-  rollRect.setAttribute('opacity', '0.35');
-  markers.appendChild(rollRect);
-
-  const line50 = document.createElementNS('http://www.w3.org/2000/svg','line');
-  const x50 = marginLeft+6+fiftyPx;
-  line50.setAttribute('x1', x50);
-  line50.setAttribute('y1', 40);
-  line50.setAttribute('x2', x50);
-  line50.setAttribute('y2', 140);
-  line50.setAttribute('stroke', '#b00020');
-  line50.setAttribute('stroke-width', '2');
-  markers.appendChild(line50);
-
-  function addLabel(text,x,y,anchor) {
-    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
-    t.setAttribute('x', x); t.setAttribute('y', y);
-    t.setAttribute('fill', '#222');
-    t.setAttribute('font-size', '12');
-    t.setAttribute('text-anchor', anchor || 'middle');
-    t.textContent = text;
-    labels.appendChild(t);
-  }
-
-  const unitLabel = units === 'ft' ? 'ft' : 'm';
-  const conv = v => units === 'ft' ? Math.round(v) : Math.round(v*0.3048*10)/10;
-
-  addLabel(`Ground roll ≈ ${conv(roll_ft)} ${unitLabel}`,
-           marginLeft+6+rollPx/2, 52, 'middle');
-  addLabel(`50 ft ≈ ${conv(fifty_ft)} ${unitLabel}`,
-           x50, 34, 'middle');
-  addLabel('Threshold', marginLeft+6, 170, 'start');
-  addLabel('Runway end', marginLeft+usableW, 170, 'end');
-  addLabel(`${Math.round(rwy_ft)} ft RWY`, marginLeft+usableW/2, 170, 'middle');
-}
-
-/* =================== WX CHART BUTTON =================== */
-function openSwllMeteoAM() {
-  const url = 'https://www.meteoam.it/it/swll';
-  window.open(url, '_blank');
-}
-
-// init mappa base all'avvio
-document.addEventListener('DOMContentLoaded', initMap);
-</script>
+  <main class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Always-on daily briefing</p>
+        <h1>LIDE Wx</h1>
+        <p class="subhead">LIMP METAR & TAF, surface wind, RWY 11/29, safety altitude, sunset, and Italy SWLL.</p>
+      </div>
+      <div class="status-panel" aria-live="polite">
+        <span id="clock">--:--</span>
+        <span id="refreshStatus">Loading briefing...</span>
+      </div>
+    </header>
+
+    <section class="tiles" aria-label="Main briefing data">
+      <article class="tile wind-tile">
+        <div class="tile-label">Today Wind</div>
+        <div class="big-number" id="windValue">--</div>
+        <div class="tile-detail" id="windDetail">Surface wind near Parma</div>
+      </article>
+
+      <article class="tile runway-tile">
+        <div class="tile-label">RWY In Use</div>
+        <div class="big-number" id="runwayValue">--</div>
+        <div class="tile-detail" id="runwayDetail">Based on headwind component</div>
+      </article>
+
+      <article class="tile safety-tile">
+        <div class="tile-label">Today Safety Altitude</div>
+        <div class="big-number" id="safetyValue">--</div>
+        <div class="tile-detail" id="safetyDetail">Minimum 900 ft AGL at MTOW</div>
+      </article>
+
+      <article class="tile sunset-tile">
+        <div class="tile-label">Sunset</div>
+        <div class="big-number" id="sunsetValue">--:--</div>
+        <div class="tile-detail" id="sunsetDetail">LIDE local time</div>
+      </article>
+
+      <article class="tile distance-tile">
+        <div class="tile-label">Ground Roll</div>
+        <div class="big-number" id="groundRollValue">--</div>
+        <div class="tile-detail" id="groundRollDetail">Corrected takeoff roll</div>
+      </article>
+
+      <article class="tile distance-tile">
+        <div class="tile-label">50 ft Distance</div>
+        <div class="big-number" id="fiftyFtValue">--</div>
+        <div class="tile-detail" id="fiftyFtDetail">Corrected obstacle distance</div>
+      </article>
+    </section>
+
+    <section class="runway-band" aria-label="Runway wind visual">
+      <div class="runway-copy">
+        <p class="eyebrow">Runway 11 / 29</p>
+        <h2 id="runwayAdvice">Waiting for wind</h2>
+        <p id="componentText">Headwind and crosswind components will appear here.</p>
+      </div>
+      <svg class="runway-svg" viewBox="0 0 760 220" role="img" aria-labelledby="runwaySvgTitle">
+        <title id="runwaySvgTitle">Runway 11 and 29 orientation diagram</title>
+        <defs>
+          <marker id="arrow" markerWidth="12" markerHeight="12" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,6 L9,3 z"></path>
+          </marker>
+        </defs>
+        <line class="runway-line" x1="110" y1="112" x2="650" y2="112"></line>
+        <text class="runway-end" x="74" y="124">29</text>
+        <text class="runway-end" x="672" y="124">11</text>
+        <line class="wind-arrow" id="windArrow" x1="380" y1="112" x2="380" y2="44"></line>
+        <text class="wind-label" id="windSvgLabel" x="395" y="48">Wind</text>
+      </svg>
+    </section>
+
+    <section class="swll-panel" aria-label="SWLL Italy">
+      <div class="panel-header">
+        <h2>SWLL Italy</h2>
+        <a href="https://www.meteoam.it/it/swll" target="_blank" rel="noopener">Open official page</a>
+      </div>
+      <iframe
+        id="swllFrame"
+        title="MeteoAM SWLL Italy"
+        src="https://www.meteoam.it/it/swll"
+        loading="lazy"
+      ></iframe>
+    </section>
+
+    <section class="weather-grid">
+      <article class="weather-panel">
+        <div class="panel-header">
+          <h2>METAR LIMP</h2>
+          <span id="metarAge">Open API</span>
+        </div>
+        <pre id="metarText">Loading METAR...</pre>
+      </article>
+
+      <article class="weather-panel">
+        <div class="panel-header">
+          <h2>TAF LIMP</h2>
+          <span id="tafAge">Open API</span>
+        </div>
+        <pre id="tafText">Loading TAF...</pre>
+      </article>
+    </section>
+
+    <section class="details">
+      <article>
+        <h2>Calculation</h2>
+        <p id="calcText">Waiting for weather data.</p>
+      </article>
+      <article>
+        <h2>Source</h2>
+        <p>METAR/TAF: open AviationWeather.gov API. Surface wind: Open-Meteo near Parma. SWLL: MeteoAM embedded when allowed, with the official link above as backup.</p>
+      </article>
+    </section>
+
+    <footer>
+      Educational briefing aid only. Always verify weather, performance, NOTAMs, runway state, and aircraft data with official sources and the POH/AFM.
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
 </body>
 </html>
