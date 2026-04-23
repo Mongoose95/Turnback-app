@@ -4,7 +4,7 @@ A simple static GitHub Pages website for an always-on daily aviation briefing.
 
 It shows:
 
-- surface wind near Parma
+- surface wind at LIDE coordinates
 - LIMP METAR and TAF
 - suggested RWY 11/29 from the wind component
 - safety altitude at 2300 lb MTOW with a 900 ft AGL minimum
@@ -25,7 +25,17 @@ Then enable GitHub Pages from the repository settings.
 ## Data sources
 
 - METAR/TAF: open AviationWeather.gov API
-- Surface wind: Open-Meteo
+- Surface wind: Windy Point Forecast when `WINDY_POINT_FORECAST_KEY` is configured in `app.js`; Open-Meteo fallback when no key is set
 - SWLL Italy: MeteoAM, embedded when the official site allows it
+
+## Windy setup
+
+Windy Point Forecast requires a Point Forecast API key. Add it in `app.js`:
+
+```js
+const WINDY_POINT_FORECAST_KEY = "your_key_here";
+```
+
+The app requests surface wind for `44.698, 10.665`, corresponding to `N44deg41'52.8" E010deg39'54.0"`. Windy rounds point forecast coordinates to 2 decimals internally.
 
 This is an educational briefing aid only. Always verify with official aviation weather, NOTAMs, runway procedures, and the aircraft POH/AFM.
