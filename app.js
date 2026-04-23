@@ -63,7 +63,7 @@ function windComponents(runwayHeading, windDir, windSpeed) {
 function chooseRunway(windDir, windSpeed) {
   if (!Number.isFinite(windDir) || !Number.isFinite(windSpeed) || windSpeed < 3) {
     return {
-      runway: "11/29",
+      runway: "11",
       heading: RWY_11,
       components: { headwind: 0, crosswind: 0 },
       calm: true,
@@ -367,24 +367,35 @@ async function loadWindySurfaceWind() {
   };
 }
 
+function updateRunwaySvg(runway) {
+  const rwy11 = el("svgRwy11");
+  const rwy29 = el("svgRwy29");
+  rwy11.classList.remove("is-active");
+  rwy29.classList.remove("is-active");
+
+  if (runway.calm) return;
+  if (runway.runway === "11") rwy11.classList.add("is-active");
+  if (runway.runway === "29") rwy29.classList.add("is-active");
+}
+
 function updateWindArrow(windDir) {
-  const arrow = el("windArrow");
+  const vector = el("windVector");
   const label = el("windSvgLabel");
   const windSpeed = state.surfaceWind?.speed;
   if (!Number.isFinite(windDir)) {
-    arrow.style.opacity = "0.2";
-    label.textContent = "Wind";
+    vector.style.opacity = "0.2";
+    label.textContent = "--- / -- kt";
     return;
   }
 
   const blowingTo = Number.isFinite(state.surfaceWind?.to)
     ? state.surfaceWind.to
     : normalizeDegrees(windDir + 180);
-  arrow.style.opacity = "1";
-  arrow.style.transform = `rotate(${blowingTo}deg)`;
+  vector.style.opacity = Number.isFinite(windSpeed) && windSpeed < 3 ? "0.42" : "1";
+  vector.style.transform = `rotate(${blowingTo - 180}deg)`;
   label.textContent = Number.isFinite(windSpeed)
-    ? `to ${Math.round(blowingTo).toString().padStart(3, "0")} deg / ${Math.round(windSpeed)} kt`
-    : `to ${Math.round(blowingTo).toString().padStart(3, "0")} deg`;
+    ? `${Math.round(windDir).toString().padStart(3, "0")} / ${Math.round(windSpeed)} kt`
+    : `${Math.round(windDir).toString().padStart(3, "0")} / -- kt`;
 }
 
 function renderBriefing() {
@@ -420,7 +431,7 @@ function renderBriefing() {
 
   el("runwayValue").textContent = runway.runway;
   el("runwayDetail").textContent = runway.calm
-    ? "Calm or very light wind"
+    ? "Preferred RWY 11 for wind below 3 kt"
     : `RWY ${runway.runway} gives the best headwind component`;
 
   el("safetyValue").textContent = `${safety.rounded} ft`;
@@ -434,10 +445,10 @@ function renderBriefing() {
   el("fiftyFtDetail").textContent = `${takeoff.fiftyFtDistanceFt} ft. Base ${BASE_50_FT_DISTANCE_FT} ft, corrected for DA and wind`;
 
   el("runwayAdvice").textContent = runway.calm
-    ? "Wind calm: confirm runway locally"
+    ? "Light wind: preferred RWY 11"
     : `Use RWY ${runway.runway} if traffic and conditions allow`;
   el("componentText").textContent = runway.calm
-    ? "Wind is below 3 kt, so runway choice should be confirmed by local procedures and traffic."
+    ? "Wind is below 3 kt. The display keeps both runway numbers black and uses RWY 11 as the preferred runway."
     : `Headwind ${safety.headwind.toFixed(1)} kt, crosswind ${Math.abs(safety.crosswind).toFixed(1)} kt. Wind angle ${Math.round(angularDifference(runway.heading, windDir))} deg from runway heading.`;
 
   el("calcText").textContent =
@@ -447,6 +458,7 @@ function renderBriefing() {
     `Safety altitude formula follows the previous app: base 900 ft adjusted for density altitude and headwind/tailwind, then never below 900 ft. ` +
     `Takeoff distance uses the previous app base values: ${BASE_GROUND_ROLL_FT} ft ground roll and ${BASE_50_FT_DISTANCE_FT} ft over 50 ft, corrected for density altitude and wind.`;
 
+  updateRunwaySvg(runway);
   updateWindArrow(windDir);
 }
 

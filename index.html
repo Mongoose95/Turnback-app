@@ -73,11 +73,14 @@
             <path d="M0,0 L0,6 L9,3 z"></path>
           </marker>
         </defs>
-        <line class="runway-line" x1="110" y1="112" x2="650" y2="112"></line>
-        <text class="runway-end" x="74" y="124">29</text>
-        <text class="runway-end" x="672" y="124">11</text>
-        <line class="wind-arrow" id="windArrow" x1="380" y1="112" x2="380" y2="44"></line>
-        <text class="wind-label" id="windSvgLabel" x="395" y="48">Wind</text>
+        <rect class="runway-box" x="142" y="130" width="476" height="62"></rect>
+        <text class="runway-end runway-11" id="svgRwy11" x="98" y="178">11</text>
+        <text class="runway-end runway-29" id="svgRwy29" x="656" y="178">29</text>
+        <g class="wind-vector" id="windVector">
+          <line class="wind-arrow" x1="380" y1="92" x2="380" y2="150"></line>
+        </g>
+        <rect class="wind-report-box" x="520" y="28" width="160" height="48"></rect>
+        <text class="wind-label" id="windSvgLabel" x="600" y="60">Wind</text>
       </svg>
     </section>
 
@@ -120,13 +123,13 @@
       <div class="notam-grid">
         <article class="notam-card">
           <h3>LIDE</h3>
-          <p>Reggio Emilia. Open current NOTAM search and verify active notices for today.</p>
-          <a href="https://notams.aim.faa.gov/notamSearch/?actionType=notamRetrievalByICAOs&formatType=ICAO&method=displayByICAOs&reportType=REPORT&retrieveLocId=LIDE" target="_blank" rel="noopener">Open LIDE NOTAM</a>
+          <p>Open Desk Aeronautico NOTAM search, then type LIDE.</p>
+          <a href="https://www.deskaeronautico.it/cerca-notam/" target="_blank" rel="noopener">Open Desk NOTAM</a>
         </article>
         <article class="notam-card">
           <h3>LIMP</h3>
-          <p>Parma. Open current NOTAM search and verify active notices for today.</p>
-          <a href="https://notams.aim.faa.gov/notamSearch/?actionType=notamRetrievalByICAOs&formatType=ICAO&method=displayByICAOs&reportType=REPORT&retrieveLocId=LIMP" target="_blank" rel="noopener">Open LIMP NOTAM</a>
+          <p>Open Desk Aeronautico NOTAM search, then type LIMP.</p>
+          <a href="https://www.deskaeronautico.it/cerca-notam/" target="_blank" rel="noopener">Open Desk NOTAM</a>
         </article>
         <article class="notam-card">
           <h3>Italy Backup</h3>

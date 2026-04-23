@@ -201,38 +201,55 @@ h2 {
   width: 100%;
   height: 220px;
   border-radius: 8px;
-  background: #eef4f1;
+  background: #f8faf7;
 }
 
-.runway-line {
-  stroke: #243331;
-  stroke-width: 16;
-  stroke-linecap: round;
+.runway-box {
+  fill: transparent;
+  stroke: #121b18;
+  stroke-width: 5;
+  rx: 2;
 }
 
 .runway-end {
   fill: var(--ink);
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 900;
 }
 
-.wind-arrow {
-  stroke: var(--blue);
-  stroke-width: 7;
-  stroke-linecap: round;
-  marker-end: url(#arrow);
-  transform-origin: 380px 112px;
+.runway-end.is-active {
+  fill: var(--green);
+}
+
+.wind-vector {
+  opacity: 0.22;
+  transform-origin: 380px 150px;
   transition: transform 180ms ease, opacity 180ms ease;
 }
 
+.wind-arrow {
+  stroke: #555f5c;
+  stroke-width: 5;
+  stroke-linecap: round;
+  marker-end: url(#arrow);
+}
+
 .wind-label {
-  fill: var(--blue);
+  fill: #555f5c;
   font-size: 18px;
   font-weight: 850;
+  text-anchor: middle;
+}
+
+.wind-report-box {
+  fill: transparent;
+  stroke: #7a7e7c;
+  stroke-width: 3;
+  rx: 3;
 }
 
 #arrow path {
-  fill: var(--blue);
+  fill: #555f5c;
 }
 
 .weather-grid {
