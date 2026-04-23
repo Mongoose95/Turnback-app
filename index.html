@@ -72,16 +72,68 @@
           <marker id="arrow" markerWidth="12" markerHeight="12" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
             <path d="M0,0 L0,6 L9,3 z"></path>
           </marker>
+          <marker id="climbArrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,6 L8,3 z"></path>
+          </marker>
         </defs>
-        <rect class="runway-box" x="142" y="130" width="476" height="62"></rect>
-        <text class="runway-end runway-11" id="svgRwy11" x="98" y="178">11</text>
-        <text class="runway-end runway-29" id="svgRwy29" x="656" y="178">29</text>
+        <line class="runway-line" x1="110" y1="150" x2="650" y2="150"></line>
+        <text class="runway-end runway-11" id="svgRwy11" x="72" y="162">11</text>
+        <text class="runway-end runway-29" id="svgRwy29" x="674" y="162">29</text>
         <g class="wind-vector" id="windVector">
-          <line class="wind-arrow" x1="380" y1="92" x2="380" y2="150"></line>
+          <line class="wind-arrow" x1="318" y1="76" x2="388" y2="132"></line>
         </g>
-        <rect class="wind-report-box" x="520" y="28" width="160" height="48"></rect>
-        <text class="wind-label" id="windSvgLabel" x="600" y="60">Wind</text>
+        <g id="takeoffMarkers">
+          <line class="distance-marker ground-marker" id="groundRollMarker" x1="240" y1="124" x2="240" y2="176"></line>
+          <text class="distance-label" id="groundRollSvgLabel" x="240" y="112">GR -- m</text>
+          <line class="distance-marker fifty-marker" id="fiftyFtMarker" x1="376" y1="124" x2="376" y2="176"></line>
+          <text class="distance-label" id="fiftyFtSvgLabel" x="376" y="196">50 ft -- m</text>
+          <line class="climb-line" id="climbLine" x1="240" y1="150" x2="376" y2="100"></line>
+          <g class="airplane-icon" id="airplaneIcon" transform="translate(240 150)">
+            <path d="M-17,5 L18,0 L-17,-5 L-8,0 Z"></path>
+          </g>
+        </g>
+        <rect class="wind-report-box" x="516" y="28" width="166" height="48"></rect>
+        <text class="wind-label" id="windSvgLabel" x="599" y="60">Wind</text>
       </svg>
+      <div class="component-row" aria-label="Runway wind components">
+        <span id="hwcValue">HWC -- kt</span>
+        <span id="twcValue">TWC -- kt</span>
+        <span id="xwcValue">XWC -- kt</span>
+      </div>
+    </section>
+
+    <section class="airport-tool" aria-label="Airport landing calculator">
+      <div class="panel-header">
+        <h2>Airport Landing Calculator</h2>
+        <span>C172M MTOW 2300 lb</span>
+      </div>
+      <div class="airport-tool-grid">
+        <div class="airport-input-row">
+          <label for="airportIcao">ICAO</label>
+          <input id="airportIcao" type="text" value="LIDE" maxlength="4" autocomplete="off">
+          <button id="airportCalcButton" type="button">Calculate</button>
+        </div>
+        <div class="airport-result-main">
+          <div>
+            <p class="tile-label">Estimated RWY</p>
+            <strong id="airportRunwayValue">--</strong>
+          </div>
+          <div>
+            <p class="tile-label">Landing Ground Roll</p>
+            <strong id="airportLandingRollValue">--</strong>
+          </div>
+          <div>
+            <p class="tile-label">Landing 50 ft</p>
+            <strong id="airportLanding50Value">--</strong>
+          </div>
+        </div>
+      </div>
+      <div class="airport-result-detail" id="airportWeatherValue">Insert ICAO and calculate.</div>
+      <div class="component-row airport-components">
+        <span id="airportHwcValue">HWC -- kt</span>
+        <span id="airportTwcValue">TWC -- kt</span>
+        <span id="airportXwcValue">XWC -- kt</span>
+      </div>
     </section>
 
     <section class="swll-panel" aria-label="SWLL Italy">

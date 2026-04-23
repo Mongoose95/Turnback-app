@@ -9,6 +9,8 @@ It shows:
 - suggested RWY 11/29 from the wind component
 - safety altitude at 2300 lb MTOW with a 900 ft AGL minimum
 - ground roll and 50 ft obstacle distance in meters
+- runway diagram with takeoff markers and wind components
+- ICAO-based landing calculator for C172M MTOW
 - a direct MeteoAM SWLL Italy link
 
 ## Deploy on GitHub Pages
@@ -19,6 +21,7 @@ Upload these files to the root of the repository:
 - `styles.css`
 - `app.js`
 - `README.md`
+- `airports_it.csv`
 
 Then enable GitHub Pages from the repository settings.
 
@@ -26,6 +29,7 @@ Then enable GitHub Pages from the repository settings.
 
 - METAR/TAF: open AviationWeather.gov API
 - Surface wind: Windy Point Forecast when `WINDY_POINT_FORECAST_KEY` is configured in `app.js`; Open-Meteo fallback when no key is set
+- ICAO airport coordinates: `airports_it.csv`
 - SWLL Italy: MeteoAM, embedded when the official site allows it
 
 ## Windy setup

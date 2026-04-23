@@ -6,14 +6,28 @@ const MTOW_LB = 2300;
 const MIN_SAFETY_ALT_FT = 900;
 const RWY_11 = 109;
 const RWY_29 = 289;
+const KNOWN_RUNWAYS = {
+  LIDE: [
+    { runway: "11", heading: 109, lengthM: 1210 },
+    { runway: "29", heading: 289, lengthM: 1210 },
+  ],
+  LIMP: [
+    { runway: "02", heading: 16, lengthM: 2122 },
+    { runway: "20", heading: 196, lengthM: 2122 },
+  ],
+};
 const BASE_GROUND_ROLL_FT = 835;
 const BASE_50_FT_DISTANCE_FT = 1475;
+const BASE_LANDING_ROLL_FT = 520;
+const BASE_LANDING_50_FT = 1250;
+const LIDE_RUNWAY_LENGTH_M = 1210;
 const FT_TO_M = 0.3048;
 
 const state = {
   surfaceWind: null,
   metar: null,
   taf: null,
+  airports: null,
 };
 
 const el = (id) => document.getElementById(id);
@@ -60,6 +74,16 @@ function windComponents(runwayHeading, windDir, windSpeed) {
   return { headwind, crosswind };
 }
 
+function splitWindComponents(components) {
+  const headwind = Math.max(0, components.headwind);
+  const tailwind = Math.max(0, -components.headwind);
+  return {
+    headwind,
+    tailwind,
+    crosswind: Math.abs(components.crosswind),
+  };
+}
+
 function chooseRunway(windDir, windSpeed) {
   if (!Number.isFinite(windDir) || !Number.isFinite(windSpeed) || windSpeed < 3) {
     return {
@@ -80,6 +104,38 @@ function chooseRunway(windDir, windSpeed) {
     components: use11 ? rwy11 : rwy29,
     calm: false,
   };
+}
+
+function chooseBestRunway(runways, windDir, windSpeed, fallbackRunway = runways[0]) {
+  if (!Number.isFinite(windDir) || !Number.isFinite(windSpeed) || windSpeed < 3) {
+    return {
+      ...fallbackRunway,
+      components: { headwind: 0, crosswind: 0 },
+      calm: true,
+    };
+  }
+
+  return runways
+    .map((runway) => ({
+      ...runway,
+      components: windComponents(runway.heading, windDir, windSpeed),
+      calm: false,
+    }))
+    .sort((a, b) => b.components.headwind - a.components.headwind)[0];
+}
+
+function estimatedRunwaysFromWind(windDir) {
+  const primary = Math.max(1, Math.min(36, Math.round(normalizeDegrees(windDir || 0) / 10) || 36));
+  const reciprocal = primary > 18 ? primary - 18 : primary + 18;
+  const format = (value) => String(value).padStart(2, "0");
+  return [
+    { runway: format(primary), heading: primary * 10 },
+    { runway: format(reciprocal), heading: reciprocal * 10 },
+  ];
+}
+
+function getAirportRunways(airport, windDir) {
+  return KNOWN_RUNWAYS[airport.icao] || estimatedRunwaysFromWind(windDir);
 }
 
 function pressureAltitude(qnhHpa) {
@@ -155,6 +211,47 @@ function calculateTakeoffDistance({ tempC, qnhHpa, windDir, windSpeed, runwayHea
     daFactorDist,
     windFactorDist,
   };
+}
+
+function calculateLandingDistance({ tempC, qnhHpa, fieldElevFt, windDir, windSpeed, runwayHeading }) {
+  const { da } = densityAltitudeForField(tempC, qnhHpa, fieldElevFt);
+  const daFactor = Math.max(0.85, 1 + 0.025 * (da / 1000));
+  const components = Number.isFinite(windDir) && Number.isFinite(windSpeed)
+    ? windComponents(runwayHeading, windDir, windSpeed)
+    : { headwind: 0, crosswind: 0 };
+
+  let windFactor;
+  if (components.headwind < 0) {
+    windFactor = 1 + 0.10 * ((-components.headwind) / 2);
+  } else {
+    windFactor = Math.max(0.65, 1 - 0.10 * (components.headwind / 5));
+  }
+
+  const factor = daFactor * windFactor;
+  return {
+    groundRollFt: Math.round(BASE_LANDING_ROLL_FT * factor),
+    fiftyFtDistanceFt: Math.round(BASE_LANDING_50_FT * factor),
+    da,
+    components,
+  };
+}
+
+function densityAltitudeForField(tempC, qnhHpa, fieldElevFt) {
+  const qnh = Number.isFinite(qnhHpa) ? qnhHpa : 1013;
+  const elev = Number.isFinite(fieldElevFt) ? fieldElevFt : 0;
+  const pa = elev + (1013 - qnh) * 30;
+  const isaTemp = 15 - 2 * (elev / 1000);
+  return {
+    pa,
+    isaTemp,
+    da: pa + 120 * ((Number.isFinite(tempC) ? tempC : 15) - isaTemp),
+  };
+}
+
+function estimateQnhFromSurfacePressure(surfacePressureHpa, elevFt) {
+  if (!Number.isFinite(surfacePressureHpa)) return null;
+  const elevM = (Number.isFinite(elevFt) ? elevFt : 0) * FT_TO_M;
+  return Math.round(surfacePressureHpa / Math.pow(1 - (elevM / 44330), 5.255));
 }
 
 function extractTemp(rawText) {
@@ -277,6 +374,67 @@ async function fetchOpenApiText(url) {
   }
 }
 
+function parseAirportsCsv(csv) {
+  const lines = csv.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const header = lines.shift()?.split(",") || [];
+  const idx = {
+    icao: header.indexOf("icao"),
+    name: header.indexOf("name"),
+    lat: header.indexOf("lat"),
+    lon: header.indexOf("lon"),
+    elev: header.indexOf("elev_ft"),
+  };
+
+  return lines.reduce((db, line) => {
+    const cols = line.split(",");
+    const icao = cols[idx.icao]?.toUpperCase();
+    if (!icao) return db;
+    db[icao] = {
+      icao,
+      name: (cols[idx.name] || icao).replaceAll("_", " "),
+      lat: Number(cols[idx.lat]),
+      lon: Number(cols[idx.lon]),
+      elevFt: Number(cols[idx.elev]),
+    };
+    return db;
+  }, {
+    LIDE: { ...LIDE, elevFt: REGGIO_FIELD_ELEV_FT },
+    LIMP: { ...LIMP, elevFt: 161 },
+  });
+}
+
+async function loadAirports() {
+  if (state.airports) return state.airports;
+  try {
+    const csv = await fetchText("airports_it.csv");
+    state.airports = parseAirportsCsv(csv);
+  } catch (error) {
+    console.warn("Airport database unavailable, using built-in LIDE/LIMP fallback.", error);
+    state.airports = parseAirportsCsv("icao,name,lat,lon,elev_ft\n");
+  }
+  return state.airports;
+}
+
+async function loadPointWeather(airport) {
+  const params = new URLSearchParams({
+    latitude: airport.lat,
+    longitude: airport.lon,
+    current: "temperature_2m,wind_speed_10m,wind_direction_10m,surface_pressure",
+    wind_speed_unit: "kn",
+    timezone: "Europe/Rome",
+  });
+  const data = await fetchJson(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
+  const current = data.current || {};
+  const surfacePressure = Number(current.surface_pressure);
+  return {
+    tempC: Number(current.temperature_2m),
+    windDir: Number(current.wind_direction_10m),
+    windSpeed: Number(current.wind_speed_10m),
+    qnhHpa: estimateQnhFromSurfacePressure(surfacePressure, airport.elevFt),
+    time: current.time,
+  };
+}
+
 async function loadMetarTaf() {
   const metarUrl = "https://aviationweather.gov/api/data/metar?ids=LIMP&format=raw&hours=4";
   const tafUrl = "https://aviationweather.gov/api/data/taf?ids=LIMP&format=raw";
@@ -367,15 +525,67 @@ async function loadWindySurfaceWind() {
   };
 }
 
-function updateRunwaySvg(runway) {
+function setSvgNumber(elm, active) {
+  elm.classList.toggle("is-active", active);
+}
+
+function formatComponents(components) {
+  const split = splitWindComponents(components);
+  return {
+    hwc: `${split.headwind.toFixed(1)} kt`,
+    twc: `${split.tailwind.toFixed(1)} kt`,
+    xwc: `${split.crosswind.toFixed(1)} kt`,
+  };
+}
+
+function updateComponentRows(components) {
+  const formatted = formatComponents(components);
+  el("hwcValue").textContent = `HWC ${formatted.hwc}`;
+  el("twcValue").textContent = `TWC ${formatted.twc}`;
+  el("xwcValue").textContent = `XWC ${formatted.xwc}`;
+}
+
+function updateTakeoffMarkers(runway, takeoff) {
+  const startX = runway.runway === "29" ? 650 : 110;
+  const endX = runway.runway === "29" ? 110 : 650;
+  const runwayPx = Math.abs(endX - startX);
+  const direction = endX > startX ? 1 : -1;
+  const groundM = Math.round(takeoff.groundRollFt * FT_TO_M);
+  const fiftyM = Math.round(takeoff.fiftyFtDistanceFt * FT_TO_M);
+  const groundX = startX + direction * Math.min(runwayPx, (groundM / LIDE_RUNWAY_LENGTH_M) * runwayPx);
+  const fiftyX = startX + direction * Math.min(runwayPx, (fiftyM / LIDE_RUNWAY_LENGTH_M) * runwayPx);
+  const climbY = 104;
+
+  const groundMarker = el("groundRollMarker");
+  const fiftyMarker = el("fiftyFtMarker");
+  const groundLabel = el("groundRollSvgLabel");
+  const fiftyLabel = el("fiftyFtSvgLabel");
+  const climbLine = el("climbLine");
+  const airplane = el("airplaneIcon");
+
+  groundMarker.setAttribute("x1", groundX);
+  groundMarker.setAttribute("x2", groundX);
+  fiftyMarker.setAttribute("x1", fiftyX);
+  fiftyMarker.setAttribute("x2", fiftyX);
+  groundLabel.setAttribute("x", groundX);
+  fiftyLabel.setAttribute("x", fiftyX);
+  groundLabel.textContent = `GR ${groundM} m`;
+  fiftyLabel.textContent = `50 ft ${fiftyM} m`;
+  climbLine.setAttribute("x1", groundX);
+  climbLine.setAttribute("y1", 150);
+  climbLine.setAttribute("x2", fiftyX);
+  climbLine.setAttribute("y2", climbY);
+  airplane.setAttribute("transform", `translate(${groundX} 150) rotate(${direction === 1 ? 0 : 180})`);
+}
+
+function updateRunwaySvg(runway, takeoff) {
   const rwy11 = el("svgRwy11");
   const rwy29 = el("svgRwy29");
-  rwy11.classList.remove("is-active");
-  rwy29.classList.remove("is-active");
+  setSvgNumber(rwy11, !runway.calm && runway.runway === "11");
+  setSvgNumber(rwy29, !runway.calm && runway.runway === "29");
 
-  if (runway.calm) return;
-  if (runway.runway === "11") rwy11.classList.add("is-active");
-  if (runway.runway === "29") rwy29.classList.add("is-active");
+  updateTakeoffMarkers(runway, takeoff);
+  updateComponentRows(runway.components);
 }
 
 function updateWindArrow(windDir) {
@@ -458,8 +668,61 @@ function renderBriefing() {
     `Safety altitude formula follows the previous app: base 900 ft adjusted for density altitude and headwind/tailwind, then never below 900 ft. ` +
     `Takeoff distance uses the previous app base values: ${BASE_GROUND_ROLL_FT} ft ground roll and ${BASE_50_FT_DISTANCE_FT} ft over 50 ft, corrected for density altitude and wind.`;
 
-  updateRunwaySvg(runway);
+  updateRunwaySvg(runway, takeoff);
   updateWindArrow(windDir);
+}
+
+async function calculateAirportLanding() {
+  const input = el("airportIcao");
+  const icao = (input.value || "").trim().toUpperCase();
+  input.value = icao;
+
+  if (!/^[A-Z]{4}$/.test(icao)) {
+    el("airportWeatherValue").textContent = "Insert a valid 4-letter ICAO code.";
+    return;
+  }
+
+  el("airportWeatherValue").textContent = `Loading ${icao} weather...`;
+  const airports = await loadAirports();
+  const airport = airports[icao];
+
+  if (!airport || !Number.isFinite(airport.lat) || !Number.isFinite(airport.lon)) {
+    el("airportWeatherValue").textContent = `${icao} not found in airports_it.csv.`;
+    return;
+  }
+
+  const weather = await loadPointWeather(airport);
+  const runway = chooseBestRunway(
+    getAirportRunways(airport, weather.windDir),
+    weather.windDir,
+    weather.windSpeed,
+    getAirportRunways(airport, weather.windDir)[0],
+  );
+  const landing = calculateLandingDistance({
+    tempC: weather.tempC,
+    qnhHpa: weather.qnhHpa,
+    fieldElevFt: airport.elevFt,
+    windDir: weather.windDir,
+    windSpeed: weather.windSpeed,
+    runwayHeading: runway.heading,
+  });
+  const formatted = formatComponents(landing.components);
+  const landingRollM = Math.round(landing.groundRollFt * FT_TO_M);
+  const landing50M = Math.round(landing.fiftyFtDistanceFt * FT_TO_M);
+
+  el("airportRunwayValue").textContent = runway.calm ? `${runway.runway} pref` : runway.runway;
+  el("airportLandingRollValue").textContent = `${landingRollM} m`;
+  el("airportLanding50Value").textContent = `${landing50M} m`;
+  el("airportHwcValue").textContent = `HWC ${formatted.hwc}`;
+  el("airportTwcValue").textContent = `TWC ${formatted.twc}`;
+  el("airportXwcValue").textContent = `XWC ${formatted.xwc}`;
+  el("airportWeatherValue").textContent =
+    `${airport.name} (${airport.icao}) elev ${Math.round(airport.elevFt || 0)} ft. ` +
+    `T ${Number.isFinite(weather.tempC) ? weather.tempC.toFixed(0) : "--"} C, ` +
+    `QNH ${Number.isFinite(weather.qnhHpa) ? weather.qnhHpa : "--"}, ` +
+    `wind ${Number.isFinite(weather.windDir) ? Math.round(weather.windDir).toString().padStart(3, "0") : "---"}/` +
+    `${Number.isFinite(weather.windSpeed) ? Math.round(weather.windSpeed) : "--"} kt. ` +
+    `Landing estimate uses C172M MTOW ${MTOW_LB} lb, base ${BASE_LANDING_ROLL_FT} ft roll / ${BASE_LANDING_50_FT} ft over 50 ft.`;
 }
 
 function refreshSwllFrame() {
@@ -497,5 +760,14 @@ async function refreshBriefing() {
 updateClock();
 renderSunset();
 refreshBriefing();
+el("airportCalcButton").addEventListener("click", () => {
+  calculateAirportLanding().catch((error) => {
+    console.error(error);
+    el("airportWeatherValue").textContent = "Unable to load airport weather for this ICAO.";
+  });
+});
+el("airportIcao").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") el("airportCalcButton").click();
+});
 setInterval(updateClock, 1000);
 setInterval(refreshBriefing, 30 * 60 * 1000);
