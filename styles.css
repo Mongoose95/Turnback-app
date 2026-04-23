@@ -314,18 +314,19 @@ h2 {
 
 .airport-tool-grid {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 1fr;
   gap: 14px;
   align-items: stretch;
 }
 
 .airport-input-row {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
 
 .airport-input-row label {
+  grid-column: 1 / -1;
   color: var(--muted);
   font-size: 0.86rem;
   font-weight: 800;
@@ -335,6 +336,7 @@ h2 {
 .airport-input-row input,
 .airport-input-row button {
   min-height: 48px;
+  width: 100%;
   border: 1px solid var(--line);
   border-radius: 8px;
   font: inherit;
@@ -564,6 +566,10 @@ footer {
   }
 
   .component-row {
+    grid-template-columns: 1fr;
+  }
+
+  .airport-input-row {
     grid-template-columns: 1fr;
   }
 }

@@ -22,6 +22,7 @@ Upload these files to the root of the repository:
 - `app.js`
 - `README.md`
 - `airports_it.csv`
+- `runways_it.csv`
 
 Then enable GitHub Pages from the repository settings.
 
@@ -30,6 +31,7 @@ Then enable GitHub Pages from the repository settings.
 - METAR/TAF: open AviationWeather.gov API
 - Surface wind: Windy Point Forecast when `WINDY_POINT_FORECAST_KEY` is configured in `app.js`; Open-Meteo fallback when no key is set
 - ICAO airport coordinates: `airports_it.csv`
+- Runway data: `runways_it.csv`, with local overrides for known corrections such as LILI `07/25`
 - SWLL Italy: MeteoAM, embedded when the official site allows it
 
 ## Windy setup

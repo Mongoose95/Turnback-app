@@ -11,9 +11,9 @@ const KNOWN_RUNWAYS = {
     { runway: "11", heading: 109, lengthM: 1210 },
     { runway: "29", heading: 289, lengthM: 1210 },
   ],
-  LIMP: [
-    { runway: "02", heading: 16, lengthM: 2122 },
-    { runway: "20", heading: 196, lengthM: 2122 },
+  LILI: [
+    { runway: "07", heading: 70, lengthM: 560 },
+    { runway: "25", heading: 250, lengthM: 560 },
   ],
 };
 const BASE_GROUND_ROLL_FT = 835;
@@ -28,6 +28,7 @@ const state = {
   metar: null,
   taf: null,
   airports: null,
+  runways: null,
 };
 
 const el = (id) => document.getElementById(id);
@@ -135,7 +136,10 @@ function estimatedRunwaysFromWind(windDir) {
 }
 
 function getAirportRunways(airport, windDir) {
-  return KNOWN_RUNWAYS[airport.icao] || estimatedRunwaysFromWind(windDir);
+  const known = KNOWN_RUNWAYS[airport.icao];
+  if (known) return known;
+  const fromDb = state.runways?.[airport.icao];
+  return fromDb?.length ? fromDb : estimatedRunwaysFromWind(windDir);
 }
 
 function pressureAltitude(qnhHpa) {
@@ -403,6 +407,100 @@ function parseAirportsCsv(csv) {
   });
 }
 
+function csvLineToCells(line) {
+  const cells = [];
+  let cell = "";
+  let quoted = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    const next = line[i + 1];
+    if (char === '"' && quoted && next === '"') {
+      cell += '"';
+      i += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      cells.push(cell);
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+
+  cells.push(cell);
+  return cells;
+}
+
+function parseRunwayNumber(ident) {
+  const match = ident?.match(/^(\d{1,2})/);
+  if (!match) return null;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value < 1 || value > 36) return null;
+  return value;
+}
+
+function reciprocalHeading(heading) {
+  return normalizeDegrees(heading + 180);
+}
+
+function headingFromIdent(ident) {
+  const runwayNumber = parseRunwayNumber(ident);
+  if (!runwayNumber) return null;
+  return runwayNumber === 36 ? 360 : runwayNumber * 10;
+}
+
+function buildRunwayEnd(ident, heading, lengthM) {
+  if (!ident || /^H/i.test(ident)) return null;
+  const fallbackHeading = headingFromIdent(ident);
+  const finalHeading = Number.isFinite(heading) ? heading : fallbackHeading;
+  if (!Number.isFinite(finalHeading)) return null;
+  return {
+    runway: ident,
+    heading: normalizeDegrees(finalHeading),
+    lengthM,
+  };
+}
+
+function parseRunwaysCsv(csv) {
+  const lines = csv.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const header = csvLineToCells(lines.shift() || "");
+  const idx = {
+    airport: header.indexOf("airport_ident"),
+    lengthFt: header.indexOf("length_ft"),
+    closed: header.indexOf("closed"),
+    leIdent: header.indexOf("le_ident"),
+    leHeading: header.indexOf("le_heading_degT"),
+    heIdent: header.indexOf("he_ident"),
+    heHeading: header.indexOf("he_heading_degT"),
+  };
+  const runways = {};
+
+  lines.forEach((line) => {
+    const cols = csvLineToCells(line);
+    const airport = cols[idx.airport]?.toUpperCase();
+    if (!airport || cols[idx.closed] === "1") return;
+    const lengthFt = Number(cols[idx.lengthFt]);
+    if (!Number.isFinite(lengthFt) || lengthFt <= 0) return;
+    const lengthM = Math.round(lengthFt * FT_TO_M);
+    const leHeading = Number(cols[idx.leHeading]);
+    const heHeading = Number(cols[idx.heHeading]);
+    const le = buildRunwayEnd(cols[idx.leIdent], leHeading, lengthM);
+    const he = buildRunwayEnd(cols[idx.heIdent], heHeading, lengthM);
+    const pair = [le, he].filter(Boolean);
+    if (pair.length < 2) return;
+
+    if (!runways[airport]) runways[airport] = [];
+    runways[airport].push(...pair);
+  });
+
+  Object.entries(KNOWN_RUNWAYS).forEach(([icao, runwayList]) => {
+    runways[icao] = runwayList;
+  });
+
+  return runways;
+}
+
 async function loadAirports() {
   if (state.airports) return state.airports;
   try {
@@ -413,6 +511,18 @@ async function loadAirports() {
     state.airports = parseAirportsCsv("icao,name,lat,lon,elev_ft\n");
   }
   return state.airports;
+}
+
+async function loadRunways() {
+  if (state.runways) return state.runways;
+  try {
+    const csv = await fetchText("runways_it.csv");
+    state.runways = parseRunwaysCsv(csv);
+  } catch (error) {
+    console.warn("Runway database unavailable, using known/fallback runways.", error);
+    state.runways = parseRunwaysCsv("airport_ident,length_ft,closed,le_ident,le_heading_degT,he_ident,he_heading_degT\n");
+  }
+  return state.runways;
 }
 
 async function loadPointWeather(airport) {
@@ -683,7 +793,7 @@ async function calculateAirportLanding() {
   }
 
   el("airportWeatherValue").textContent = `Loading ${icao} weather...`;
-  const airports = await loadAirports();
+  const [airports] = await Promise.all([loadAirports(), loadRunways()]);
   const airport = airports[icao];
 
   if (!airport || !Number.isFinite(airport.lat) || !Number.isFinite(airport.lon)) {
@@ -692,11 +802,12 @@ async function calculateAirportLanding() {
   }
 
   const weather = await loadPointWeather(airport);
+  const runways = getAirportRunways(airport, weather.windDir);
   const runway = chooseBestRunway(
-    getAirportRunways(airport, weather.windDir),
+    runways,
     weather.windDir,
     weather.windSpeed,
-    getAirportRunways(airport, weather.windDir)[0],
+    runways[0],
   );
   const landing = calculateLandingDistance({
     tempC: weather.tempC,
