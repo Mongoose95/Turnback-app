@@ -11,9 +11,9 @@ const KNOWN_RUNWAYS = {
     { runway: "11", heading: 109, lengthM: 1210 },
     { runway: "29", heading: 289, lengthM: 1210 },
   ],
-  LILI: [
-    { runway: "07", heading: 70, lengthM: 560 },
-    { runway: "25", heading: 250, lengthM: 560 },
+  LIPF: [
+    { runway: "09", heading: 90, lengthM: 850 },
+    { runway: "27", heading: 270, lengthM: 850 },
   ],
 };
 const BASE_GROUND_ROLL_FT = 835;
