@@ -1,16 +1,18 @@
-# Daily LIDE Briefing
+# LIDE Wx
 
-A simple static GitHub Pages website for an always-on daily aviation briefing.
+A simple static GitHub Pages website with an aircraft selector front page and an aircraft-aware daily briefing.
 
 It shows:
 
+- front page selector for `C172M`, `C150M`, and `8KCAB`
 - surface wind at LIDE coordinates
 - LIMP METAR and TAF
+- airport-specific METAR and TAF lookup by ICAO
 - suggested RWY 11/29 from the wind component
-- safety altitude at 2300 lb MTOW with a 900 ft AGL minimum
+- safety altitude with the selected aircraft profile
 - ground roll and 50 ft obstacle distance in meters
 - runway diagram with takeoff markers and wind components
-- ICAO-based landing calculator for C172M MTOW
+- ICAO-based landing calculator for the selected aircraft
 - a direct MeteoAM SWLL Italy link
 
 ## Deploy on GitHub Pages
@@ -18,6 +20,7 @@ It shows:
 Upload these files to the root of the repository:
 
 - `index.html`
+- `briefing.html`
 - `styles.css`
 - `app.js`
 - `README.md`
@@ -33,6 +36,10 @@ Then enable GitHub Pages from the repository settings.
 - ICAO airport coordinates: `airports_it.csv`
 - Runway data: `runways_it.csv`, with local overrides for known corrections such as LIPF `09/27`
 - SWLL Italy: MeteoAM, embedded when the official site allows it
+- Aircraft performance profiles:
+  - `C172M`: existing app baseline
+  - `C150M`: uploaded `CESSNA_150_POH.pdf`
+  - `8KCAB`: uploaded `8KCAB-POH.pdf`
 
 ## Windy setup
 

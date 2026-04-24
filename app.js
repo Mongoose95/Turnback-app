@@ -2,7 +2,6 @@ const LIMP = { id: "LIMP", name: "Parma", lat: 44.8245, lon: 10.2964 };
 const LIDE = { id: "LIDE", name: "Reggio Emilia", lat: 44.698, lon: 10.665 };
 const WINDY_POINT_FORECAST_KEY = "";
 const REGGIO_FIELD_ELEV_FT = 152;
-const MTOW_LB = 2300;
 const MIN_SAFETY_ALT_FT = 900;
 const RWY_11 = 109;
 const RWY_29 = 289;
@@ -16,14 +15,52 @@ const KNOWN_RUNWAYS = {
     { runway: "27", heading: 270, lengthM: 850 },
   ],
 };
-const BASE_GROUND_ROLL_FT = 835;
-const BASE_50_FT_DISTANCE_FT = 1475;
-const BASE_LANDING_ROLL_FT = 520;
-const BASE_LANDING_50_FT = 1250;
+const AIRCRAFT_PROFILES = {
+  c172m: {
+    id: "c172m",
+    label: "Cessna 172M",
+    pageTitle: "LIDE Wx",
+    pageSubhead: "LIMP METAR & TAF, surface wind, RWY 11/29, safety altitude, sunset, and Italy SWLL.",
+    mtowLb: 2300,
+    baseSafetyFt: 900,
+    baseTakeoffRollFt: 835,
+    baseTakeoff50Ft: 1475,
+    baseLandingRollFt: 520,
+    baseLanding50Ft: 1250,
+    sourceNote: "C172M baseline currently used in the original briefing page.",
+  },
+  c150m: {
+    id: "c150m",
+    label: "Cessna 150M",
+    pageTitle: "LIDE Wx",
+    pageSubhead: "C150M performance profile active with the same live weather and airport tools.",
+    mtowLb: 1600,
+    baseSafetyFt: 780,
+    baseTakeoffRollFt: 735,
+    baseTakeoff50Ft: 1385,
+    baseLandingRollFt: 445,
+    baseLanding50Ft: 1075,
+    sourceNote: "From the uploaded 1977 Cessna 150M handbook performance section.",
+  },
+  "8kcab": {
+    id: "8kcab",
+    label: "Super Decathlon 8KCAB",
+    pageTitle: "LIDE Wx",
+    pageSubhead: "8KCAB performance profile active with the same live weather and airport tools.",
+    mtowLb: 1800,
+    baseSafetyFt: 650,
+    baseTakeoffRollFt: 456,
+    baseTakeoff50Ft: 833,
+    baseLandingRollFt: 413,
+    baseLanding50Ft: 1023,
+    sourceNote: "From the uploaded 8KCAB POH Section IV performance charts at sea level / standard conditions.",
+  },
+};
 const LIDE_RUNWAY_LENGTH_M = 1210;
 const FT_TO_M = 0.3048;
 
 const state = {
+  aircraft: null,
   surfaceWind: null,
   metar: null,
   taf: null,
@@ -32,6 +69,16 @@ const state = {
 };
 
 const el = (id) => document.getElementById(id);
+
+function getSelectedAircraft() {
+  const params = new URLSearchParams(window.location.search);
+  const requested = (params.get("aircraft") || "c172m").toLowerCase();
+  return AIRCRAFT_PROFILES[requested] || AIRCRAFT_PROFILES.c172m;
+}
+
+function currentAircraft() {
+  return state.aircraft || AIRCRAFT_PROFILES.c172m;
+}
 
 function pad(value) {
   return String(value).padStart(2, "0");
@@ -158,7 +205,7 @@ function densityAltitude(tempC, qnhHpa) {
 }
 
 function calculateSafetyAltitude({ tempC, qnhHpa, windDir, windSpeed, runwayHeading }) {
-  const baseSafety = 900;
+  const baseSafety = currentAircraft().baseSafetyFt;
   const { pa, isaTemp, da } = densityAltitude(tempC, qnhHpa);
   const daDiff = da - REGGIO_FIELD_ELEV_FT;
   const daFactorSafety = 1 + 0.10 * (daDiff / 1000);
@@ -192,6 +239,7 @@ function calculateSafetyAltitude({ tempC, qnhHpa, windDir, windSpeed, runwayHead
 }
 
 function calculateTakeoffDistance({ tempC, qnhHpa, windDir, windSpeed, runwayHeading }) {
+  const aircraft = currentAircraft();
   const { da } = densityAltitude(tempC, qnhHpa);
   const daDiff = da - REGGIO_FIELD_ELEV_FT;
   const daFactorDist = 1 + 0.12 * (daDiff / 1000);
@@ -210,14 +258,15 @@ function calculateTakeoffDistance({ tempC, qnhHpa, windDir, windSpeed, runwayHea
   const factor = daFactorDist * windFactorDist * weightFactorDist;
 
   return {
-    groundRollFt: Math.round(BASE_GROUND_ROLL_FT * factor),
-    fiftyFtDistanceFt: Math.round(BASE_50_FT_DISTANCE_FT * factor),
+    groundRollFt: Math.round(aircraft.baseTakeoffRollFt * factor),
+    fiftyFtDistanceFt: Math.round(aircraft.baseTakeoff50Ft * factor),
     daFactorDist,
     windFactorDist,
   };
 }
 
 function calculateLandingDistance({ tempC, qnhHpa, fieldElevFt, windDir, windSpeed, runwayHeading }) {
+  const aircraft = currentAircraft();
   const { da } = densityAltitudeForField(tempC, qnhHpa, fieldElevFt);
   const daFactor = Math.max(0.85, 1 + 0.025 * (da / 1000));
   const components = Number.isFinite(windDir) && Number.isFinite(windSpeed)
@@ -233,8 +282,8 @@ function calculateLandingDistance({ tempC, qnhHpa, fieldElevFt, windDir, windSpe
 
   const factor = daFactor * windFactor;
   return {
-    groundRollFt: Math.round(BASE_LANDING_ROLL_FT * factor),
-    fiftyFtDistanceFt: Math.round(BASE_LANDING_50_FT * factor),
+    groundRollFt: Math.round(aircraft.baseLandingRollFt * factor),
+    fiftyFtDistanceFt: Math.round(aircraft.baseLanding50Ft * factor),
     da,
     components,
   };
@@ -718,7 +767,18 @@ function updateWindArrow(windDir) {
     : `${Math.round(windDir).toString().padStart(3, "0")} / -- kt`;
 }
 
+function initAircraftUi() {
+  state.aircraft = getSelectedAircraft();
+  document.title = `${state.aircraft.label} Briefing`;
+  el("pageTitle").textContent = "LIDE Wx";
+  el("pageSubhead").textContent = state.aircraft.pageSubhead;
+  el("aircraftChip").textContent = state.aircraft.label;
+  const airportPanelLabel = document.querySelector(".airport-tool .panel-header span");
+  if (airportPanelLabel) airportPanelLabel.textContent = `${state.aircraft.label} MTOW ${state.aircraft.mtowLb} lb`;
+}
+
 function renderBriefing() {
+  const aircraft = currentAircraft();
   const metarRaw = state.metar?.raw || "";
   const tempC = extractTemp(metarRaw);
   const qnhHpa = extractQnh(metarRaw);
@@ -760,9 +820,9 @@ function renderBriefing() {
     : `Use calculated value. Minimum is ${MIN_SAFETY_ALT_FT} ft.`;
 
   el("groundRollValue").textContent = `${Math.round(takeoff.groundRollFt * FT_TO_M)} m`;
-  el("groundRollDetail").textContent = `${takeoff.groundRollFt} ft. Base ${BASE_GROUND_ROLL_FT} ft, corrected for DA and wind`;
+  el("groundRollDetail").textContent = `${takeoff.groundRollFt} ft. Base ${aircraft.baseTakeoffRollFt} ft, corrected for DA and wind`;
   el("fiftyFtValue").textContent = `${Math.round(takeoff.fiftyFtDistanceFt * FT_TO_M)} m`;
-  el("fiftyFtDetail").textContent = `${takeoff.fiftyFtDistanceFt} ft. Base ${BASE_50_FT_DISTANCE_FT} ft, corrected for DA and wind`;
+  el("fiftyFtDetail").textContent = `${takeoff.fiftyFtDistanceFt} ft. Base ${aircraft.baseTakeoff50Ft} ft, corrected for DA and wind`;
 
   el("runwayAdvice").textContent = runway.calm
     ? "Light wind: preferred RWY 11"
@@ -772,17 +832,18 @@ function renderBriefing() {
     : `Headwind ${safety.headwind.toFixed(1)} kt, crosswind ${Math.abs(safety.crosswind).toFixed(1)} kt. Wind angle ${Math.round(angularDifference(runway.heading, windDir))} deg from runway heading.`;
 
   el("calcText").textContent =
-    `MTOW fixed at ${MTOW_LB} lb. Field elevation ${REGGIO_FIELD_ELEV_FT} ft. ` +
+    `${aircraft.label}. MTOW fixed at ${aircraft.mtowLb} lb. Field elevation ${REGGIO_FIELD_ELEV_FT} ft. ` +
     `Temp ${Number.isFinite(tempC) ? tempC : 15} C, QNH ${Number.isFinite(qnhHpa) ? qnhHpa : 1013} hPa. ` +
     `Pressure altitude ${Math.round(safety.pa)} ft, density altitude ${Math.round(safety.da)} ft. ` +
-    `Safety altitude formula follows the previous app: base 900 ft adjusted for density altitude and headwind/tailwind, then never below 900 ft. ` +
-    `Takeoff distance uses the previous app base values: ${BASE_GROUND_ROLL_FT} ft ground roll and ${BASE_50_FT_DISTANCE_FT} ft over 50 ft, corrected for density altitude and wind.`;
+    `Safety altitude uses the selected aircraft profile with a ${aircraft.baseSafetyFt} ft baseline, adjusted for density altitude and headwind/tailwind. ` +
+    `Takeoff distance uses ${aircraft.baseTakeoffRollFt} ft ground roll and ${aircraft.baseTakeoff50Ft} ft over 50 ft, corrected for density altitude and wind. ${aircraft.sourceNote}`;
 
   updateRunwaySvg(runway, takeoff);
   updateWindArrow(windDir);
 }
 
 async function calculateAirportLanding() {
+  const aircraft = currentAircraft();
   const input = el("airportIcao");
   const icao = (input.value || "").trim().toUpperCase();
   input.value = icao;
@@ -833,7 +894,42 @@ async function calculateAirportLanding() {
     `QNH ${Number.isFinite(weather.qnhHpa) ? weather.qnhHpa : "--"}, ` +
     `wind ${Number.isFinite(weather.windDir) ? Math.round(weather.windDir).toString().padStart(3, "0") : "---"}/` +
     `${Number.isFinite(weather.windSpeed) ? Math.round(weather.windSpeed) : "--"} kt. ` +
-    `Landing estimate uses C172M MTOW ${MTOW_LB} lb, base ${BASE_LANDING_ROLL_FT} ft roll / ${BASE_LANDING_50_FT} ft over 50 ft.`;
+    `Landing estimate uses ${aircraft.label} MTOW ${aircraft.mtowLb} lb, base ${aircraft.baseLandingRollFt} ft roll / ${aircraft.baseLanding50Ft} ft over 50 ft.`;
+}
+
+async function loadAirportReports() {
+  const input = el("reportsIcao");
+  const icao = (input.value || "").trim().toUpperCase();
+  input.value = icao;
+
+  if (!/^[A-Z]{4}$/.test(icao)) {
+    el("airportReportsStatus").textContent = "Use a valid 4-letter ICAO.";
+    return;
+  }
+
+  el("airportReportsStatus").textContent = `Loading ${icao} reports...`;
+  const metarUrl = `https://aviationweather.gov/api/data/metar?ids=${icao}&format=raw&hours=4`;
+  const tafUrl = `https://aviationweather.gov/api/data/taf?ids=${icao}&format=raw`;
+
+  const [metarResult, tafResult] = await Promise.allSettled([
+    fetchOpenApiText(metarUrl),
+    fetchOpenApiText(tafUrl),
+  ]);
+
+  const metarText = metarResult.status === "fulfilled"
+    ? metarResult.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)[0] || "No METAR received."
+    : "METAR unavailable.";
+  const tafText = tafResult.status === "fulfilled"
+    ? tafResult.value.trim() || "No TAF received."
+    : "TAF unavailable.";
+
+  el("airportMetarTitle").textContent = `METAR ${icao}`;
+  el("airportTafTitle").textContent = `TAF ${icao}`;
+  el("airportMetarText").textContent = metarText;
+  el("airportTafText").textContent = tafText;
+  el("airportMetarAge").textContent = "AviationWeather";
+  el("airportTafAge").textContent = "AviationWeather";
+  el("airportReportsStatus").textContent = `Loaded ${icao} reports`;
 }
 
 function refreshSwllFrame() {
@@ -868,9 +964,14 @@ async function refreshBriefing() {
   }
 }
 
+initAircraftUi();
 updateClock();
 renderSunset();
 refreshBriefing();
+loadAirportReports().catch((error) => {
+  console.error(error);
+  el("airportReportsStatus").textContent = "Unable to load airport reports.";
+});
 el("airportCalcButton").addEventListener("click", () => {
   calculateAirportLanding().catch((error) => {
     console.error(error);
@@ -879,6 +980,15 @@ el("airportCalcButton").addEventListener("click", () => {
 });
 el("airportIcao").addEventListener("keydown", (event) => {
   if (event.key === "Enter") el("airportCalcButton").click();
+});
+el("loadReportsButton").addEventListener("click", () => {
+  loadAirportReports().catch((error) => {
+    console.error(error);
+    el("airportReportsStatus").textContent = "Unable to load airport reports.";
+  });
+});
+el("reportsIcao").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") el("loadReportsButton").click();
 });
 setInterval(updateClock, 1000);
 setInterval(refreshBriefing, 30 * 60 * 1000);

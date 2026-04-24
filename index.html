@@ -6,210 +6,45 @@
   <title>LIDE Wx</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
-  <main class="app-shell">
-    <header class="hero">
-      <div>
-        <p class="eyebrow">Always-on daily briefing</p>
-        <h1>LIDE Wx</h1>
-        <p class="subhead">LIMP METAR & TAF, surface wind, RWY 11/29, safety altitude, sunset, and Italy SWLL.</p>
-      </div>
-      <div class="status-panel" aria-live="polite">
-        <span id="clock">--:--</span>
-        <span id="utcClock">--:-- UTC</span>
-        <span id="refreshStatus">Loading briefing...</span>
-      </div>
-    </header>
-
-    <section class="tiles" aria-label="Main briefing data">
-      <article class="tile wind-tile">
-        <div class="tile-label">Today Wind</div>
-        <div class="big-number" id="windValue">--</div>
-        <div class="qnh-line" id="qnhValue">QNH --</div>
-        <div class="tile-detail" id="windDetail">Surface wind at LIDE</div>
-      </article>
-
-      <article class="tile runway-tile">
-        <div class="tile-label">RWY In Use</div>
-        <div class="big-number" id="runwayValue">--</div>
-        <div class="tile-detail" id="runwayDetail">Based on headwind component</div>
-      </article>
-
-      <article class="tile safety-tile">
-        <div class="tile-label">Today Safety Altitude</div>
-        <div class="big-number" id="safetyValue">--</div>
-        <div class="tile-detail" id="safetyDetail">Minimum 900 ft AGL at MTOW</div>
-      </article>
-
-      <article class="tile sunset-tile">
-        <div class="tile-label">Sunset</div>
-        <div class="big-number" id="sunsetValue">--:--</div>
-        <div class="tile-detail" id="sunsetDetail">LIDE local time</div>
-      </article>
-
-      <article class="tile distance-tile">
-        <div class="tile-label">Ground Roll</div>
-        <div class="big-number" id="groundRollValue">--</div>
-        <div class="tile-detail" id="groundRollDetail">Corrected takeoff roll</div>
-      </article>
-
-      <article class="tile distance-tile">
-        <div class="tile-label">50 ft Distance</div>
-        <div class="big-number" id="fiftyFtValue">--</div>
-        <div class="tile-detail" id="fiftyFtDetail">Corrected obstacle distance</div>
-      </article>
+<body class="home-page">
+  <main class="home-shell">
+    <section class="home-hero">
+      <p class="eyebrow">Performance briefing</p>
+      <h1>LIDE Wx</h1>
+      <p class="subhead">Choose the aircraft first, then open the full briefing with performance, runway, landing, and weather logic adapted to that POH profile.</p>
     </section>
 
-    <section class="runway-band" aria-label="Runway wind visual">
-      <div class="runway-copy">
-        <p class="eyebrow">Runway 11 / 29</p>
-        <h2 id="runwayAdvice">Waiting for wind</h2>
-        <p id="componentText">Headwind and crosswind components will appear here.</p>
-      </div>
-      <svg class="runway-svg" viewBox="0 0 760 220" role="img" aria-labelledby="runwaySvgTitle">
-        <title id="runwaySvgTitle">Runway 11 and 29 orientation diagram</title>
-        <defs>
-          <marker id="arrow" markerWidth="12" markerHeight="12" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-            <path d="M0,0 L0,6 L9,3 z"></path>
-          </marker>
-          <marker id="climbArrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-            <path d="M0,0 L0,6 L8,3 z"></path>
-          </marker>
-        </defs>
-        <line class="runway-line" x1="110" y1="150" x2="650" y2="150"></line>
-        <text class="runway-end runway-11" id="svgRwy11" x="72" y="162">11</text>
-        <text class="runway-end runway-29" id="svgRwy29" x="674" y="162">29</text>
-        <g class="wind-vector" id="windVector">
-          <line class="wind-arrow" x1="318" y1="76" x2="388" y2="132"></line>
-        </g>
-        <g id="takeoffMarkers">
-          <line class="distance-marker ground-marker" id="groundRollMarker" x1="240" y1="124" x2="240" y2="176"></line>
-          <text class="distance-label" id="groundRollSvgLabel" x="240" y="112">GR -- m</text>
-          <line class="distance-marker fifty-marker" id="fiftyFtMarker" x1="376" y1="124" x2="376" y2="176"></line>
-          <text class="distance-label" id="fiftyFtSvgLabel" x="376" y="196">50 ft -- m</text>
-          <line class="climb-line" id="climbLine" x1="240" y1="150" x2="376" y2="100"></line>
-          <g class="airplane-icon" id="airplaneIcon" transform="translate(240 150)">
-            <path d="M-17,5 L18,0 L-17,-5 L-8,0 Z"></path>
-          </g>
-        </g>
-        <rect class="wind-report-box" x="516" y="28" width="166" height="48"></rect>
-        <text class="wind-label" id="windSvgLabel" x="599" y="60">Wind</text>
-      </svg>
-      <div class="component-row" aria-label="Runway wind components">
-        <span id="hwcValue">HWC -- kt</span>
-        <span id="twcValue">TWC -- kt</span>
-        <span id="xwcValue">XWC -- kt</span>
-      </div>
-    </section>
-
-    <section class="airport-tool" aria-label="Airport landing calculator">
-      <div class="panel-header">
-        <h2>Airport Landing Calculator</h2>
-        <span>C172M MTOW 2300 lb</span>
-      </div>
-      <div class="airport-tool-grid">
-        <div class="airport-input-row">
-          <label for="airportIcao">ICAO</label>
-          <input id="airportIcao" type="text" value="LIDE" maxlength="4" autocomplete="off">
-          <button id="airportCalcButton" type="button">Calculate</button>
+    <section class="aircraft-selector" aria-label="Aircraft selector">
+      <a class="aircraft-card" href="briefing.html?aircraft=c172m">
+        <span class="aircraft-type">Default</span>
+        <h2>Cessna 172M</h2>
+        <p>MTOW 2300 lb. Current LIDE briefing baseline.</p>
+        <div class="aircraft-metrics">
+          <span>T/O 835 / 1475 ft</span>
+          <span>LDG 520 / 1250 ft</span>
         </div>
-        <div class="airport-result-main">
-          <div>
-            <p class="tile-label">Estimated RWY</p>
-            <strong id="airportRunwayValue">--</strong>
-          </div>
-          <div>
-            <p class="tile-label">Landing Ground Roll</p>
-            <strong id="airportLandingRollValue">--</strong>
-          </div>
-          <div>
-            <p class="tile-label">Landing 50 ft</p>
-            <strong id="airportLanding50Value">--</strong>
-          </div>
+      </a>
+
+      <a class="aircraft-card" href="briefing.html?aircraft=c150m">
+        <span class="aircraft-type">POH 1977</span>
+        <h2>Cessna 150M</h2>
+        <p>MTOW 1600 lb. Performance based on the uploaded C150 handbook.</p>
+        <div class="aircraft-metrics">
+          <span>T/O 735 / 1385 ft</span>
+          <span>LDG 445 / 1075 ft</span>
         </div>
-      </div>
-      <div class="airport-result-detail" id="airportWeatherValue">Insert ICAO and calculate.</div>
-      <div class="component-row airport-components">
-        <span id="airportHwcValue">HWC -- kt</span>
-        <span id="airportTwcValue">TWC -- kt</span>
-        <span id="airportXwcValue">XWC -- kt</span>
-      </div>
-    </section>
+      </a>
 
-    <section class="swll-panel" aria-label="SWLL Italy">
-      <div class="panel-header">
-        <h2>SWLL Italy</h2>
-        <a href="https://www.meteoam.it/it/swll" target="_blank" rel="noopener">Open official page</a>
-      </div>
-      <iframe
-        id="swllFrame"
-        title="MeteoAM SWLL Italy"
-        src="https://www.meteoam.it/it/swll"
-        loading="lazy"
-      ></iframe>
-    </section>
-
-    <section class="weather-grid">
-      <article class="weather-panel">
-        <div class="panel-header">
-          <h2>METAR LIMP</h2>
-          <span id="metarAge">Open API</span>
+      <a class="aircraft-card" href="briefing.html?aircraft=8kcab">
+        <span class="aircraft-type">POH 8KCAB</span>
+        <h2>Super Decathlon</h2>
+        <p>MTOW 1800 lb. Performance taken from the uploaded 8KCAB performance charts.</p>
+        <div class="aircraft-metrics">
+          <span>T/O 456 / 833 ft</span>
+          <span>LDG 413 / 1023 ft</span>
         </div>
-        <pre id="metarText">Loading METAR...</pre>
-      </article>
-
-      <article class="weather-panel">
-        <div class="panel-header">
-          <h2>TAF LIMP</h2>
-          <span id="tafAge">Open API</span>
-        </div>
-        <pre id="tafText">Loading TAF...</pre>
-      </article>
+      </a>
     </section>
-
-    <section class="notam-panel" aria-label="NOTAM LIDE and LIMP">
-      <div class="panel-header">
-        <h2>NOTAM Today</h2>
-        <span id="notamUpdated">Online official sources</span>
-      </div>
-      <div class="notam-grid">
-        <article class="notam-card">
-          <h3>LIDE</h3>
-          <p>Open Desk Aeronautico NOTAM search, then type LIDE.</p>
-          <a href="https://www.deskaeronautico.it/cerca-notam/" target="_blank" rel="noopener">Open Desk NOTAM</a>
-        </article>
-        <article class="notam-card">
-          <h3>LIMP</h3>
-          <p>Open Desk Aeronautico NOTAM search, then type LIMP.</p>
-          <a href="https://www.deskaeronautico.it/cerca-notam/" target="_blank" rel="noopener">Open Desk NOTAM</a>
-        </article>
-        <article class="notam-card">
-          <h3>Italy Backup</h3>
-          <p>Use official Italian sources if FAA search is unavailable or incomplete.</p>
-          <div class="link-row">
-            <a href="https://www.deskaeronautico.it/cerca-notam/" target="_blank" rel="noopener">Desk</a>
-            <a href="https://www.enav.it" target="_blank" rel="noopener">ENAV</a>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <section class="details">
-      <article>
-        <h2>Calculation</h2>
-        <p id="calcText">Waiting for weather data.</p>
-      </article>
-      <article>
-        <h2>Source</h2>
-        <p>METAR/TAF: open AviationWeather.gov API. Surface wind: Windy Point Forecast at LIDE when a key is configured, otherwise Open-Meteo fallback. SWLL: MeteoAM embedded when allowed, with the official link above as backup.</p>
-      </article>
-    </section>
-
-    <footer>
-      Educational briefing aid only. Always verify weather, performance, NOTAMs, runway state, and aircraft data with official sources and the POH/AFM.
-    </footer>
   </main>
-
-  <script src="app.js"></script>
 </body>
 </html>
