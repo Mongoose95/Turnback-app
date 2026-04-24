@@ -1,6 +1,6 @@
 const LIMP = { id: "LIMP", name: "Parma", lat: 44.8245, lon: 10.2964 };
 const LIDE = { id: "LIDE", name: "Reggio Emilia", lat: 44.698, lon: 10.665 };
-const WINDY_POINT_FORECAST_KEY = "";
+const WINDY_POINT_FORECAST_KEY = "L0t9MIoLVNobQmkXlaNuRVeGm1L1NxXS";
 const REGGIO_FIELD_ELEV_FT = 152;
 const MIN_SAFETY_ALT_FT = 900;
 const RWY_11 = 109;
@@ -770,7 +770,7 @@ function updateWindArrow(windDir) {
 function initAircraftUi() {
   state.aircraft = getSelectedAircraft();
   document.title = `${state.aircraft.label} Briefing`;
-  el("pageTitle").textContent = "LIDE Wx";
+  el("pageTitle").textContent = `LIDE Wx - ${state.aircraft.label}`;
   el("pageSubhead").textContent = state.aircraft.pageSubhead;
   el("aircraftChip").textContent = state.aircraft.label;
   const airportPanelLabel = document.querySelector(".airport-tool .panel-header span");
