@@ -980,6 +980,45 @@ function readWeightInputsFromPage() {
   };
 }
 
+function writeWeightInputsToPage(inputs) {
+  setWeightFieldValue("pilotLb", inputs.pilotLb);
+  setWeightFieldValue("frontPassengerLb", inputs.frontPassengerLb);
+  setWeightFieldValue("rearPassengersLb", inputs.rearPassengersLb);
+  setWeightFieldValue("baggage1Lb", inputs.baggage1Lb);
+  setWeightFieldValue("baggage2Lb", inputs.baggage2Lb);
+  setWeightFieldValue("fuelTakeoffGal", inputs.fuelTakeoffGal);
+  setWeightFieldValue("fuelLandingGal", inputs.fuelLandingGal);
+}
+
+function fitInputsToMtow(profile, inputs) {
+  const loading = profile.loading || {};
+  const safeInputs = {
+    ...defaultLoadInputs(profile),
+    ...inputs,
+  };
+  const fixedWeight = clampNumber(loading.emptyWeightLb) + clampNumber(loading.oilWeightLb);
+  const payloadWeight =
+    clampNumber(safeInputs.pilotLb) +
+    clampNumber(safeInputs.frontPassengerLb) +
+    clampNumber(safeInputs.rearPassengersLb) +
+    clampNumber(safeInputs.baggage1Lb, 0, loading.baggage1MaxLb || Number.POSITIVE_INFINITY) +
+    clampNumber(safeInputs.baggage2Lb, 0, loading.baggage2MaxLb || Number.POSITIVE_INFINITY);
+  const availableFuelLb = Math.max(0, profile.mtowLb - fixedWeight - payloadWeight);
+  const maxFuelGal = clampNumber(loading.maxFuelGal);
+  const targetFuelGal = Math.min(maxFuelGal, availableFuelLb / 6);
+  const existingBurnGal = Math.max(0, clampNumber(safeInputs.fuelTakeoffGal) - clampNumber(safeInputs.fuelLandingGal));
+
+  return {
+    pilotLb: clampNumber(safeInputs.pilotLb),
+    frontPassengerLb: clampNumber(safeInputs.frontPassengerLb),
+    rearPassengersLb: clampNumber(safeInputs.rearPassengersLb),
+    baggage1Lb: clampNumber(safeInputs.baggage1Lb, 0, loading.baggage1MaxLb || Number.POSITIVE_INFINITY),
+    baggage2Lb: clampNumber(safeInputs.baggage2Lb, 0, loading.baggage2MaxLb || Number.POSITIVE_INFINITY),
+    fuelTakeoffGal: Number(targetFuelGal.toFixed(1)),
+    fuelLandingGal: Number(Math.max(0, targetFuelGal - existingBurnGal).toFixed(1)),
+  };
+}
+
 function updateWeightSummary(load) {
   el("weightTakeoffValue").textContent = `${Math.round(load.takeoffWeightLb)} lb`;
   el("weightLandingValue").textContent = `${Math.round(load.landingWeightLb)} lb`;
@@ -999,6 +1038,7 @@ function initWeightPage() {
   const stored = getStoredLoadData(aircraft.id);
   const initialInputs = stored?.inputs || defaultLoadInputs(aircraft);
   const weightLink = el("weightContinue");
+  const mtowButton = el("weightMtowButton");
 
   document.title = `${aircraft.label} Weight of Today`;
   el("weightPageTitle").textContent = `${aircraft.label} - Weight of Today`;
@@ -1011,13 +1051,7 @@ function initWeightPage() {
   toggleWeightRow("baggage1Row", profile.includeBaggage);
   toggleWeightRow("baggage2Row", profile.includeBaggage);
 
-  setWeightFieldValue("pilotLb", initialInputs.pilotLb);
-  setWeightFieldValue("frontPassengerLb", initialInputs.frontPassengerLb);
-  setWeightFieldValue("rearPassengersLb", initialInputs.rearPassengersLb);
-  setWeightFieldValue("baggage1Lb", initialInputs.baggage1Lb);
-  setWeightFieldValue("baggage2Lb", initialInputs.baggage2Lb);
-  setWeightFieldValue("fuelTakeoffGal", initialInputs.fuelTakeoffGal);
-  setWeightFieldValue("fuelLandingGal", initialInputs.fuelLandingGal);
+  writeWeightInputsToPage(initialInputs);
 
   const recalc = () => {
     const load = buildLoadData(aircraft, readWeightInputsFromPage());
@@ -1029,6 +1063,15 @@ function initWeightPage() {
   recalc();
   document.querySelectorAll(".weight-form input").forEach((input) => {
     input.addEventListener("input", recalc);
+  });
+
+  mtowButton.addEventListener("click", () => {
+    const mtowInputs = fitInputsToMtow(aircraft, readWeightInputsFromPage());
+    writeWeightInputsToPage(mtowInputs);
+    const load = recalc();
+    el("weightStatus").textContent = load.overMtow
+      ? `Payload alone is above MTOW, so fuel was reduced to minimum possible. ${load.loadingNote}`
+      : `Fuel adjusted automatically to bring ${aircraft.label} to MTOW. ${load.loadingNote}`;
   });
 
   weightLink.addEventListener("click", (event) => {
