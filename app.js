@@ -1,6 +1,5 @@
 const LIMP = { id: "LIMP", name: "Parma", lat: 44.8245, lon: 10.2964 };
-const LIDE = { id: "LIDE", name: "Reggio Emilia", lat: 44.698, lon: 10.665 };
-const WINDY_POINT_FORECAST_KEY = "L0t9MIoLVNobQmkXlaNuRVeGm1L1NxXS";
+const LIDE = { id: "LIDE", name: "Reggio Emilia", lat: 44.698833, lon: 10.665 };
 const REGGIO_FIELD_ELEV_FT = 152;
 const MIN_SAFETY_ALT_FT = 900;
 const RWY_11 = 109;
@@ -96,18 +95,6 @@ function degToRad(deg) {
 
 function normalizeDegrees(deg) {
   return ((deg % 360) + 360) % 360;
-}
-
-function msToKt(ms) {
-  return ms * 1.943844;
-}
-
-function windVectorToDirection(u, v) {
-  const blowingTo = normalizeDegrees(Math.atan2(u, v) * 180 / Math.PI);
-  return {
-    from: normalizeDegrees(blowingTo + 180),
-    to: blowingTo,
-  };
 }
 
 function angularDifference(a, b) {
@@ -611,15 +598,6 @@ async function loadMetarTaf() {
 }
 
 async function loadSurfaceWind() {
-  if (WINDY_POINT_FORECAST_KEY.trim()) {
-    try {
-      await loadWindySurfaceWind();
-      return;
-    } catch (error) {
-      console.warn("Windy forecast unavailable, using Open-Meteo fallback.", error);
-    }
-  }
-
   const params = new URLSearchParams({
     latitude: LIDE.lat,
     longitude: LIDE.lon,
@@ -636,51 +614,6 @@ async function loadSurfaceWind() {
     speed: Number(current.wind_speed_10m),
     time: current.time,
     source: "Open-Meteo",
-  };
-}
-
-async function loadWindySurfaceWind() {
-  const response = await fetchWithTimeout("https://api.windy.com/api/point-forecast/v2", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      lat: LIDE.lat,
-      lon: LIDE.lon,
-      model: "iconEu",
-      parameters: ["wind"],
-      levels: ["surface"],
-      key: WINDY_POINT_FORECAST_KEY.trim(),
-    }),
-  });
-
-  if (!response.ok) throw new Error(`Windy HTTP ${response.status}`);
-
-  const data = await response.json();
-  const timestamps = data.ts || [];
-  const windU = data["wind_u-surface"] || [];
-  const windV = data["wind_v-surface"] || [];
-  const now = Date.now();
-  let selectedIndex = 0;
-
-  for (let i = 1; i < timestamps.length; i += 1) {
-    if (Math.abs(timestamps[i] - now) < Math.abs(timestamps[selectedIndex] - now)) {
-      selectedIndex = i;
-    }
-  }
-
-  const u = Number(windU[selectedIndex]);
-  const v = Number(windV[selectedIndex]);
-  if (!Number.isFinite(u) || !Number.isFinite(v)) {
-    throw new Error("Windy response did not include surface wind vector.");
-  }
-
-  const direction = windVectorToDirection(u, v);
-  state.surfaceWind = {
-    dir: direction.from,
-    to: direction.to,
-    speed: msToKt(Math.hypot(u, v)),
-    time: timestamps[selectedIndex] ? new Date(timestamps[selectedIndex]).toLocaleString() : "now",
-    source: "Windy ICON-EU",
   };
 }
 
