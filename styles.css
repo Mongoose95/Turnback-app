@@ -46,6 +46,10 @@ body.home-page {
   padding: 42px 0 32px;
 }
 
+.weight-shell {
+  padding-top: 28px;
+}
+
 .home-hero {
   min-height: 220px;
   display: grid;
@@ -57,6 +61,101 @@ body.home-page {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
+}
+
+.weight-hero {
+  min-height: 160px;
+  display: grid;
+  grid-template-columns: 1fr minmax(250px, 320px);
+  gap: 18px;
+  align-items: end;
+  padding-bottom: 18px;
+}
+
+.weight-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(320px, 1.05fr);
+  gap: 16px;
+}
+
+.weight-form-card,
+.weight-summary-card {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: var(--shadow);
+}
+
+.weight-form {
+  display: grid;
+  gap: 10px;
+}
+
+.weight-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 10px;
+  align-items: center;
+}
+
+.weight-row span {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.weight-row input {
+  min-height: 46px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.weight-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.weight-summary-grid article {
+  min-height: 114px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.weight-summary-grid strong {
+  display: block;
+  margin-top: 14px;
+  font-size: clamp(1.9rem, 4vw, 3rem);
+  line-height: 1;
+}
+
+.weight-status {
+  margin: 14px 2px 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.weight-continue {
+  min-height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 16px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: var(--green);
+  color: #fff;
+  font-weight: 900;
+  text-decoration: none;
 }
 
 .aircraft-card {
@@ -653,6 +752,8 @@ footer {
 
 @media (max-width: 920px) {
   .aircraft-selector,
+  .weight-hero,
+  .weight-layout,
   .hero,
   .runway-band,
   .weather-grid,
@@ -689,6 +790,10 @@ footer {
     padding-top: 12px;
   }
 
+  .home-shell {
+    width: min(100% - 18px, 1180px);
+  }
+
   .tiles {
     grid-template-columns: 1fr;
   }
@@ -706,6 +811,11 @@ footer {
   }
 
   .airport-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-row,
+  .weight-summary-grid {
     grid-template-columns: 1fr;
   }
 }

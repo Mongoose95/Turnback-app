@@ -27,6 +27,19 @@ const AIRCRAFT_PROFILES = {
     baseLandingRollFt: 520,
     baseLanding50Ft: 1250,
     sourceNote: "C172M baseline currently used in the original briefing page.",
+    loading: {
+      emptyWeightLb: 1518.46,
+      emptyMomentInLb: 60050,
+      fuelArmIn: 47.8,
+      maxFuelGal: 40,
+      fuelBurnArmIn: 47.8,
+      frontSeatArmIn: 37,
+      rearSeatArmIn: 73,
+      includeFrontPassenger: true,
+      includeRearPassengers: true,
+      includeBaggage: false,
+      reference: "From the uploaded C172M loading sheet for I-CLLO.",
+    },
   },
   c150m: {
     id: "c150m",
@@ -40,6 +53,24 @@ const AIRCRAFT_PROFILES = {
     baseLandingRollFt: 445,
     baseLanding50Ft: 1075,
     sourceNote: "From the uploaded 1977 Cessna 150M handbook performance section.",
+    loading: {
+      emptyWeightLb: 1122.85,
+      emptyMomentInLb: 36000,
+      oilWeightLb: 11,
+      oilMomentInLb: -100,
+      fuelArmIn: 42.2,
+      maxFuelGal: 22.5,
+      fuelBurnArmIn: 42.2,
+      frontSeatArmIn: 39,
+      baggage1ArmIn: 64,
+      baggage2ArmIn: 84,
+      baggage1MaxLb: 120,
+      baggage2MaxLb: 40,
+      includeFrontPassenger: true,
+      includeRearPassengers: false,
+      includeBaggage: true,
+      reference: "From the uploaded C150L loading sheet for I-MRVE.",
+    },
   },
   "8kcab": {
     id: "8kcab",
@@ -53,15 +84,30 @@ const AIRCRAFT_PROFILES = {
     baseLandingRollFt: 413,
     baseLanding50Ft: 1023,
     sourceNote: "From the uploaded 8KCAB POH Section IV performance charts at sea level / standard conditions.",
+    loading: {
+      emptyWeightLb: 1285,
+      emptyMomentInLb: 17308,
+      fuelArmIn: 26.04,
+      maxFuelGal: 20,
+      fuelBurnArmIn: 26.04,
+      frontSeatArmIn: 15.92,
+      rearSeatArmIn: 44.74,
+      includeFrontPassenger: false,
+      includeRearPassengers: true,
+      includeBaggage: false,
+      reference: "Using the sample airplane loading data from the uploaded 8KCAB POH.",
+    },
   },
 };
 const LIDE_RUNWAY_LENGTH_M = 1210;
 const FT_TO_M = 0.3048;
+const WEIGHT_DATA_KEY = "lide_wx_weight_data_v1";
 const WIND_CACHE_KEY = "lide_wx_surface_wind_v1";
 const WIND_CACHE_TTL_MS = 30 * 60 * 1000;
 
 const state = {
   aircraft: null,
+  loadData: null,
   surfaceWind: null,
   metar: null,
   taf: null,
@@ -79,6 +125,116 @@ function getSelectedAircraft() {
 
 function currentAircraft() {
   return state.aircraft || AIRCRAFT_PROFILES.c172m;
+}
+
+function currentLoadingProfile() {
+  return currentAircraft().loading || {};
+}
+
+function readStoredLoads() {
+  try {
+    return JSON.parse(window.sessionStorage.getItem(WEIGHT_DATA_KEY) || "{}");
+  } catch (error) {
+    console.warn("Unable to read stored load data", error);
+    return {};
+  }
+}
+
+function storeLoadData(aircraftId, data) {
+  const existing = readStoredLoads();
+  existing[aircraftId] = data;
+  window.sessionStorage.setItem(WEIGHT_DATA_KEY, JSON.stringify(existing));
+}
+
+function getStoredLoadData(aircraftId) {
+  return readStoredLoads()[aircraftId] || null;
+}
+
+function clampNumber(value, min = 0, max = Number.POSITIVE_INFINITY) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.min(max, Math.max(min, numeric));
+}
+
+function poundsFromGallons(gallons) {
+  return clampNumber(gallons) * 6;
+}
+
+function momentFrom(weightLb, armIn) {
+  if (!Number.isFinite(weightLb) || !Number.isFinite(armIn)) return 0;
+  return weightLb * armIn;
+}
+
+function defaultLoadInputs(profile) {
+  return {
+    pilotLb: 77,
+    frontPassengerLb: profile.loading?.includeFrontPassenger ? 0 : 0,
+    rearPassengersLb: profile.loading?.includeRearPassengers ? 0 : 0,
+    baggage1Lb: profile.loading?.includeBaggage ? 0 : 0,
+    baggage2Lb: profile.loading?.includeBaggage ? 0 : 0,
+    fuelTakeoffGal: profile.loading?.maxFuelGal || 0,
+    fuelLandingGal: Math.min(10, profile.loading?.maxFuelGal || 0),
+  };
+}
+
+function buildLoadData(profile, inputs) {
+  const loading = profile.loading || {};
+  const safeInputs = {
+    pilotLb: clampNumber(inputs.pilotLb),
+    frontPassengerLb: clampNumber(inputs.frontPassengerLb),
+    rearPassengersLb: clampNumber(inputs.rearPassengersLb),
+    baggage1Lb: clampNumber(inputs.baggage1Lb, 0, loading.baggage1MaxLb || Number.POSITIVE_INFINITY),
+    baggage2Lb: clampNumber(inputs.baggage2Lb, 0, loading.baggage2MaxLb || Number.POSITIVE_INFINITY),
+    fuelTakeoffGal: clampNumber(inputs.fuelTakeoffGal, 0, loading.maxFuelGal || Number.POSITIVE_INFINITY),
+    fuelLandingGal: clampNumber(inputs.fuelLandingGal, 0, loading.maxFuelGal || Number.POSITIVE_INFINITY),
+  };
+  safeInputs.fuelLandingGal = Math.min(safeInputs.fuelLandingGal, safeInputs.fuelTakeoffGal);
+
+  const fuelTakeoffLb = poundsFromGallons(safeInputs.fuelTakeoffGal);
+  const fuelLandingLb = poundsFromGallons(safeInputs.fuelLandingGal);
+  const fixedWeight = clampNumber(loading.emptyWeightLb) + clampNumber(loading.oilWeightLb);
+  const fixedMoment = clampNumber(loading.emptyMomentInLb) + clampNumber(loading.oilMomentInLb, -100000, 100000);
+
+  const peopleTakeoffWeight = safeInputs.pilotLb + safeInputs.frontPassengerLb + safeInputs.rearPassengersLb + safeInputs.baggage1Lb + safeInputs.baggage2Lb;
+  const takeoffMoment =
+    fixedMoment +
+    momentFrom(safeInputs.pilotLb, loading.frontSeatArmIn) +
+    momentFrom(safeInputs.frontPassengerLb, loading.frontSeatArmIn) +
+    momentFrom(safeInputs.rearPassengersLb, loading.rearSeatArmIn) +
+    momentFrom(safeInputs.baggage1Lb, loading.baggage1ArmIn) +
+    momentFrom(safeInputs.baggage2Lb, loading.baggage2ArmIn) +
+    momentFrom(fuelTakeoffLb, loading.fuelArmIn);
+  const landingMoment =
+    fixedMoment +
+    momentFrom(safeInputs.pilotLb, loading.frontSeatArmIn) +
+    momentFrom(safeInputs.frontPassengerLb, loading.frontSeatArmIn) +
+    momentFrom(safeInputs.rearPassengersLb, loading.rearSeatArmIn) +
+    momentFrom(safeInputs.baggage1Lb, loading.baggage1ArmIn) +
+    momentFrom(safeInputs.baggage2Lb, loading.baggage2ArmIn) +
+    momentFrom(fuelLandingLb, loading.fuelBurnArmIn || loading.fuelArmIn);
+  const takeoffWeightLb = fixedWeight + peopleTakeoffWeight + fuelTakeoffLb;
+  const landingWeightLb = fixedWeight + peopleTakeoffWeight + fuelLandingLb;
+
+  return {
+    inputs: safeInputs,
+    takeoffWeightLb,
+    landingWeightLb,
+    takeoffMomentInLb: takeoffMoment,
+    landingMomentInLb: landingMoment,
+    takeoffCgIn: takeoffWeightLb > 0 ? takeoffMoment / takeoffWeightLb : null,
+    landingCgIn: landingWeightLb > 0 ? landingMoment / landingWeightLb : null,
+    fuelBurnLb: fuelTakeoffLb - fuelLandingLb,
+    overMtow: takeoffWeightLb > profile.mtowLb,
+    loadingNote: loading.reference || "",
+  };
+}
+
+function ensureLoadData() {
+  if (state.loadData) return state.loadData;
+  const profile = currentAircraft();
+  const stored = getStoredLoadData(profile.id);
+  state.loadData = buildLoadData(profile, stored?.inputs || defaultLoadInputs(profile));
+  return state.loadData;
 }
 
 function pad(value) {
@@ -242,11 +398,14 @@ function densityAltitude(tempC, qnhHpa) {
 }
 
 function calculateSafetyAltitude({ tempC, qnhHpa, windDir, windSpeed, runwayHeading }) {
-  const baseSafety = currentAircraft().baseSafetyFt;
+  const aircraft = currentAircraft();
+  const load = ensureLoadData();
+  const baseSafety = aircraft.baseSafetyFt;
   const { pa, isaTemp, da } = densityAltitude(tempC, qnhHpa);
   const daDiff = da - REGGIO_FIELD_ELEV_FT;
   const daFactorSafety = 1 + 0.10 * (daDiff / 1000);
-  const weightFactorSafety = 1;
+  const weightRatio = clampNumber(load.takeoffWeightLb, 1) / aircraft.mtowLb;
+  const weightFactorSafety = Math.max(0.82, 0.86 + (0.14 * weightRatio));
   const components = Number.isFinite(windDir) && Number.isFinite(windSpeed)
     ? windComponents(runwayHeading, windDir, windSpeed)
     : { headwind: 0, crosswind: 0 };
@@ -277,10 +436,12 @@ function calculateSafetyAltitude({ tempC, qnhHpa, windDir, windSpeed, runwayHead
 
 function calculateTakeoffDistance({ tempC, qnhHpa, windDir, windSpeed, runwayHeading }) {
   const aircraft = currentAircraft();
+  const load = ensureLoadData();
   const { da } = densityAltitude(tempC, qnhHpa);
   const daDiff = da - REGGIO_FIELD_ELEV_FT;
   const daFactorDist = 1 + 0.12 * (daDiff / 1000);
-  const weightFactorDist = 1;
+  const weightRatio = clampNumber(load.takeoffWeightLb, 1) / aircraft.mtowLb;
+  const weightFactorDist = Math.max(0.6, Math.pow(weightRatio, 1.7));
   const components = Number.isFinite(windDir) && Number.isFinite(windSpeed)
     ? windComponents(runwayHeading, windDir, windSpeed)
     : { headwind: 0, crosswind: 0 };
@@ -304,8 +465,10 @@ function calculateTakeoffDistance({ tempC, qnhHpa, windDir, windSpeed, runwayHea
 
 function calculateLandingDistance({ tempC, qnhHpa, fieldElevFt, windDir, windSpeed, runwayHeading }) {
   const aircraft = currentAircraft();
+  const load = ensureLoadData();
   const { da } = densityAltitudeForField(tempC, qnhHpa, fieldElevFt);
   const daFactor = Math.max(0.85, 1 + 0.025 * (da / 1000));
+  const weightRatio = clampNumber(load.landingWeightLb, 1) / aircraft.mtowLb;
   const components = Number.isFinite(windDir) && Number.isFinite(windSpeed)
     ? windComponents(runwayHeading, windDir, windSpeed)
     : { headwind: 0, crosswind: 0 };
@@ -317,12 +480,14 @@ function calculateLandingDistance({ tempC, qnhHpa, fieldElevFt, windDir, windSpe
     windFactor = Math.max(0.65, 1 - 0.10 * (components.headwind / 5));
   }
 
-  const factor = daFactor * windFactor;
+  const weightFactor = Math.max(0.65, Math.pow(weightRatio, 1.7));
+  const factor = daFactor * windFactor * weightFactor;
   return {
     groundRollFt: Math.round(aircraft.baseLandingRollFt * factor),
     fiftyFtDistanceFt: Math.round(aircraft.baseLanding50Ft * factor),
     da,
     components,
+    weightFactor,
   };
 }
 
@@ -783,6 +948,8 @@ function updateWindArrow(windDir) {
 
 function initAircraftUi() {
   state.aircraft = getSelectedAircraft();
+  state.loadData = null;
+  ensureLoadData();
   document.title = `${state.aircraft.label} Briefing`;
   el("pageTitle").textContent = `LIDE Wx - ${state.aircraft.label}`;
   el("pageSubhead").textContent = state.aircraft.pageSubhead;
@@ -791,8 +958,90 @@ function initAircraftUi() {
   if (airportPanelLabel) airportPanelLabel.textContent = `${state.aircraft.label} MTOW ${state.aircraft.mtowLb} lb`;
 }
 
+function setWeightFieldValue(id, value) {
+  const field = el(id);
+  if (field) field.value = Number.isFinite(value) ? String(value) : "0";
+}
+
+function toggleWeightRow(id, visible) {
+  const row = el(id);
+  if (row) row.hidden = !visible;
+}
+
+function readWeightInputsFromPage() {
+  return {
+    pilotLb: clampNumber(el("pilotLb")?.value),
+    frontPassengerLb: clampNumber(el("frontPassengerLb")?.value),
+    rearPassengersLb: clampNumber(el("rearPassengersLb")?.value),
+    baggage1Lb: clampNumber(el("baggage1Lb")?.value),
+    baggage2Lb: clampNumber(el("baggage2Lb")?.value),
+    fuelTakeoffGal: clampNumber(el("fuelTakeoffGal")?.value),
+    fuelLandingGal: clampNumber(el("fuelLandingGal")?.value),
+  };
+}
+
+function updateWeightSummary(load) {
+  el("weightTakeoffValue").textContent = `${Math.round(load.takeoffWeightLb)} lb`;
+  el("weightLandingValue").textContent = `${Math.round(load.landingWeightLb)} lb`;
+  el("weightTakeoffCgValue").textContent = Number.isFinite(load.takeoffCgIn) ? `${load.takeoffCgIn.toFixed(2)} in` : "--";
+  el("weightLandingCgValue").textContent = Number.isFinite(load.landingCgIn) ? `${load.landingCgIn.toFixed(2)} in` : "--";
+  el("weightFuelBurnValue").textContent = `${Math.round(load.fuelBurnLb)} lb`;
+  el("weightStatus").textContent = load.overMtow
+    ? `Above MTOW. Reduce load before using the briefing calculations. ${load.loadingNote}`
+    : `Ready for briefing. ${load.loadingNote}`;
+}
+
+function initWeightPage() {
+  state.aircraft = getSelectedAircraft();
+  state.loadData = null;
+  const aircraft = currentAircraft();
+  const profile = currentLoadingProfile();
+  const stored = getStoredLoadData(aircraft.id);
+  const initialInputs = stored?.inputs || defaultLoadInputs(aircraft);
+  const weightLink = el("weightContinue");
+
+  document.title = `${aircraft.label} Weight of Today`;
+  el("weightPageTitle").textContent = `${aircraft.label} - Weight of Today`;
+  el("weightPageSubhead").textContent = `Use the real load for today, then open the same LIDE briefing with performance adjusted for this aircraft and this weight.`;
+  el("weightAircraftChip").textContent = `${aircraft.label} / MTOW ${aircraft.mtowLb} lb`;
+  el("weightReference").textContent = profile.reference || aircraft.sourceNote;
+
+  toggleWeightRow("frontPassengerRow", profile.includeFrontPassenger);
+  toggleWeightRow("rearPassengersRow", profile.includeRearPassengers);
+  toggleWeightRow("baggage1Row", profile.includeBaggage);
+  toggleWeightRow("baggage2Row", profile.includeBaggage);
+
+  setWeightFieldValue("pilotLb", initialInputs.pilotLb);
+  setWeightFieldValue("frontPassengerLb", initialInputs.frontPassengerLb);
+  setWeightFieldValue("rearPassengersLb", initialInputs.rearPassengersLb);
+  setWeightFieldValue("baggage1Lb", initialInputs.baggage1Lb);
+  setWeightFieldValue("baggage2Lb", initialInputs.baggage2Lb);
+  setWeightFieldValue("fuelTakeoffGal", initialInputs.fuelTakeoffGal);
+  setWeightFieldValue("fuelLandingGal", initialInputs.fuelLandingGal);
+
+  const recalc = () => {
+    const load = buildLoadData(aircraft, readWeightInputsFromPage());
+    state.loadData = load;
+    updateWeightSummary(load);
+    return load;
+  };
+
+  recalc();
+  document.querySelectorAll(".weight-form input").forEach((input) => {
+    input.addEventListener("input", recalc);
+  });
+
+  weightLink.addEventListener("click", (event) => {
+    event.preventDefault();
+    const load = recalc();
+    storeLoadData(aircraft.id, load);
+    window.location.href = `briefing.html?aircraft=${encodeURIComponent(aircraft.id)}`;
+  });
+}
+
 function renderBriefing() {
   const aircraft = currentAircraft();
+  const load = ensureLoadData();
   const metarRaw = state.metar?.raw || "";
   const tempC = extractTemp(metarRaw);
   const qnhHpa = extractQnh(metarRaw);
@@ -837,9 +1086,9 @@ function renderBriefing() {
     : `Use calculated value. Minimum is ${MIN_SAFETY_ALT_FT} ft.`;
 
   el("groundRollValue").textContent = `${Math.round(takeoff.groundRollFt * FT_TO_M)} m`;
-  el("groundRollDetail").textContent = `${takeoff.groundRollFt} ft. Base ${aircraft.baseTakeoffRollFt} ft, corrected for DA and wind`;
+  el("groundRollDetail").textContent = `${takeoff.groundRollFt} ft. Base ${aircraft.baseTakeoffRollFt} ft, corrected for weight, DA, and wind`;
   el("fiftyFtValue").textContent = `${Math.round(takeoff.fiftyFtDistanceFt * FT_TO_M)} m`;
-  el("fiftyFtDetail").textContent = `${takeoff.fiftyFtDistanceFt} ft. Base ${aircraft.baseTakeoff50Ft} ft, corrected for DA and wind`;
+  el("fiftyFtDetail").textContent = `${takeoff.fiftyFtDistanceFt} ft. Base ${aircraft.baseTakeoff50Ft} ft, corrected for weight, DA, and wind`;
 
   el("runwayAdvice").textContent = runway.calm
     ? "Light wind: preferred RWY 11"
@@ -849,11 +1098,15 @@ function renderBriefing() {
     : `Headwind ${safety.headwind.toFixed(1)} kt, crosswind ${Math.abs(safety.crosswind).toFixed(1)} kt. Wind angle ${Math.round(angularDifference(runway.heading, windDir))} deg from runway heading.`;
 
   el("calcText").textContent =
-    `${aircraft.label}. MTOW fixed at ${aircraft.mtowLb} lb. Field elevation ${REGGIO_FIELD_ELEV_FT} ft. ` +
+    `${aircraft.label}. Takeoff weight ${Math.round(load.takeoffWeightLb)} lb, landing weight ${Math.round(load.landingWeightLb)} lb, fuel burn ${Math.round(load.fuelBurnLb)} lb. ` +
+    `Field elevation ${REGGIO_FIELD_ELEV_FT} ft. ` +
     `Temp ${Number.isFinite(tempC) ? tempC : 15} C, QNH ${Number.isFinite(qnhHpa) ? qnhHpa : 1013} hPa. ` +
     `Pressure altitude ${Math.round(safety.pa)} ft, density altitude ${Math.round(safety.da)} ft. ` +
-    `Safety altitude uses the selected aircraft profile with a ${aircraft.baseSafetyFt} ft baseline, adjusted for density altitude and headwind/tailwind. ` +
-    `Takeoff distance uses ${aircraft.baseTakeoffRollFt} ft ground roll and ${aircraft.baseTakeoff50Ft} ft over 50 ft, corrected for density altitude and wind. ${aircraft.sourceNote}`;
+    `Safety altitude uses the selected aircraft profile with a ${aircraft.baseSafetyFt} ft baseline, adjusted for weight, density altitude, and headwind/tailwind. ` +
+    `Takeoff distance uses ${aircraft.baseTakeoffRollFt} ft ground roll and ${aircraft.baseTakeoff50Ft} ft over 50 ft, corrected for weight, density altitude, and wind. ` +
+    `Takeoff CG ${Number.isFinite(load.takeoffCgIn) ? load.takeoffCgIn.toFixed(2) : "--"} in, landing CG ${Number.isFinite(load.landingCgIn) ? load.landingCgIn.toFixed(2) : "--"} in. ${aircraft.sourceNote}`;
+  const airportPanelLabel = document.querySelector(".airport-tool .panel-header span");
+  if (airportPanelLabel) airportPanelLabel.textContent = `${aircraft.label} / T/O ${Math.round(load.takeoffWeightLb)} lb / LDG ${Math.round(load.landingWeightLb)} lb`;
 
   updateRunwaySvg(runway, takeoff);
   updateWindArrow(windDir);
@@ -861,6 +1114,7 @@ function renderBriefing() {
 
 async function calculateAirportLanding() {
   const aircraft = currentAircraft();
+  const load = ensureLoadData();
   const input = el("airportIcao");
   const icao = (input.value || "").trim().toUpperCase();
   input.value = icao;
@@ -911,7 +1165,7 @@ async function calculateAirportLanding() {
     `QNH ${Number.isFinite(weather.qnhHpa) ? weather.qnhHpa : "--"}, ` +
     `wind ${Number.isFinite(weather.windDir) ? Math.round(weather.windDir).toString().padStart(3, "0") : "---"}/` +
     `${Number.isFinite(weather.windSpeed) ? Math.round(weather.windSpeed) : "--"} kt. ` +
-    `Landing estimate uses ${aircraft.label} MTOW ${aircraft.mtowLb} lb, base ${aircraft.baseLandingRollFt} ft roll / ${aircraft.baseLanding50Ft} ft over 50 ft.`;
+    `Landing estimate uses ${aircraft.label} landing weight ${Math.round(load.landingWeightLb)} lb, base ${aircraft.baseLandingRollFt} ft roll / ${aircraft.baseLanding50Ft} ft over 50 ft.`;
 }
 
 async function loadAirportReports() {
@@ -981,31 +1235,35 @@ async function refreshBriefing() {
   }
 }
 
-initAircraftUi();
-updateClock();
-renderSunset();
-refreshBriefing();
-loadAirportReports().catch((error) => {
-  console.error(error);
-  el("airportReportsStatus").textContent = "Unable to load airport reports.";
-});
-el("airportCalcButton").addEventListener("click", () => {
-  calculateAirportLanding().catch((error) => {
-    console.error(error);
-    el("airportWeatherValue").textContent = "Unable to load airport weather for this ICAO.";
-  });
-});
-el("airportIcao").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") el("airportCalcButton").click();
-});
-el("loadReportsButton").addEventListener("click", () => {
+if (el("weightPageTitle")) {
+  initWeightPage();
+} else if (el("pageTitle")) {
+  initAircraftUi();
+  updateClock();
+  renderSunset();
+  refreshBriefing();
   loadAirportReports().catch((error) => {
     console.error(error);
     el("airportReportsStatus").textContent = "Unable to load airport reports.";
   });
-});
-el("reportsIcao").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") el("loadReportsButton").click();
-});
-setInterval(updateClock, 1000);
-setInterval(refreshBriefing, 30 * 60 * 1000);
+  el("airportCalcButton").addEventListener("click", () => {
+    calculateAirportLanding().catch((error) => {
+      console.error(error);
+      el("airportWeatherValue").textContent = "Unable to load airport weather for this ICAO.";
+    });
+  });
+  el("airportIcao").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") el("airportCalcButton").click();
+  });
+  el("loadReportsButton").addEventListener("click", () => {
+    loadAirportReports().catch((error) => {
+      console.error(error);
+      el("airportReportsStatus").textContent = "Unable to load airport reports.";
+    });
+  });
+  el("reportsIcao").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") el("loadReportsButton").click();
+  });
+  setInterval(updateClock, 1000);
+  setInterval(refreshBriefing, 30 * 60 * 1000);
+}

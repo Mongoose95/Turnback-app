@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weight of Today</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="home-page">
+  <main class="home-shell weight-shell">
+    <header class="weight-hero">
+      <div>
+        <p class="eyebrow">Daily loading</p>
+        <h1 id="weightPageTitle">Aircraft - Weight of Today</h1>
+        <p class="subhead" id="weightPageSubhead">Insert today weight and fuel, then continue to the live briefing.</p>
+      </div>
+      <div class="status-panel">
+        <span class="aircraft-chip" id="weightAircraftChip">Aircraft --</span>
+        <span id="weightReference">Loading profile</span>
+      </div>
+    </header>
+
+    <section class="weight-layout">
+      <section class="weight-form-card">
+        <div class="panel-header">
+          <h2>Weight Inputs</h2>
+          <span>All weights in lb, fuel in US gal</span>
+        </div>
+        <div class="weight-form">
+          <label class="weight-row">
+            <span>Pilot</span>
+            <input id="pilotLb" type="number" min="0" step="1" inputmode="decimal">
+          </label>
+
+          <label class="weight-row" id="frontPassengerRow">
+            <span>Front Passenger / Student</span>
+            <input id="frontPassengerLb" type="number" min="0" step="1" inputmode="decimal">
+          </label>
+
+          <label class="weight-row" id="rearPassengersRow">
+            <span>Rear Passengers</span>
+            <input id="rearPassengersLb" type="number" min="0" step="1" inputmode="decimal">
+          </label>
+
+          <label class="weight-row" id="baggage1Row">
+            <span>Baggage Area 1</span>
+            <input id="baggage1Lb" type="number" min="0" step="1" inputmode="decimal">
+          </label>
+
+          <label class="weight-row" id="baggage2Row">
+            <span>Baggage Area 2</span>
+            <input id="baggage2Lb" type="number" min="0" step="1" inputmode="decimal">
+          </label>
+
+          <label class="weight-row">
+            <span>Fuel at Takeoff</span>
+            <input id="fuelTakeoffGal" type="number" min="0" step="0.1" inputmode="decimal">
+          </label>
+
+          <label class="weight-row">
+            <span>Estimated Fuel at Landing</span>
+            <input id="fuelLandingGal" type="number" min="0" step="0.1" inputmode="decimal">
+          </label>
+        </div>
+      </section>
+
+      <section class="weight-summary-card">
+        <div class="panel-header">
+          <h2>Today Summary</h2>
+          <span>Live update</span>
+        </div>
+        <div class="weight-summary-grid">
+          <article>
+            <p class="tile-label">Takeoff Weight</p>
+            <strong id="weightTakeoffValue">--</strong>
+          </article>
+          <article>
+            <p class="tile-label">Landing Weight</p>
+            <strong id="weightLandingValue">--</strong>
+          </article>
+          <article>
+            <p class="tile-label">Takeoff CG</p>
+            <strong id="weightTakeoffCgValue">--</strong>
+          </article>
+          <article>
+            <p class="tile-label">Landing CG</p>
+            <strong id="weightLandingCgValue">--</strong>
+          </article>
+          <article>
+            <p class="tile-label">Fuel Burn</p>
+            <strong id="weightFuelBurnValue">--</strong>
+          </article>
+        </div>
+        <p class="weight-status" id="weightStatus">Waiting for load data.</p>
+        <a class="weight-continue" id="weightContinue" href="briefing.html">Continue to briefing</a>
+      </section>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,10 +1,11 @@
 # LIDE Wx
 
-A simple static GitHub Pages website with an aircraft selector front page and an aircraft-aware daily briefing.
+A simple static GitHub Pages website with an aircraft selector front page, a weight-of-today step, and an aircraft-aware daily briefing.
 
 It shows:
 
 - front page selector for `C172M`, `C150M`, and `8KCAB`
+- weight-of-today page with takeoff/landing weight and CG
 - surface wind at LIDE coordinates, stabilized for 30 minutes
 - LIMP METAR and TAF
 - airport-specific METAR and TAF lookup by ICAO
@@ -21,6 +22,7 @@ Upload these files to the root of the repository:
 
 - `index.html`
 - `briefing.html`
+- `weight.html`
 - `styles.css`
 - `app.js`
 - `README.md`
