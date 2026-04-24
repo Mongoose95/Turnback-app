@@ -57,6 +57,8 @@ const AIRCRAFT_PROFILES = {
 };
 const LIDE_RUNWAY_LENGTH_M = 1210;
 const FT_TO_M = 0.3048;
+const WIND_CACHE_KEY = "lide_wx_surface_wind_v1";
+const WIND_CACHE_TTL_MS = 30 * 60 * 1000;
 
 const state = {
   aircraft: null,
@@ -100,6 +102,54 @@ function normalizeDegrees(deg) {
 function angularDifference(a, b) {
   const diff = Math.abs(normalizeDegrees(a) - normalizeDegrees(b));
   return diff > 180 ? 360 - diff : diff;
+}
+
+function readWindCache() {
+  try {
+    const raw = window.localStorage.getItem(WIND_CACHE_KEY);
+    if (!raw) return null;
+    const cached = JSON.parse(raw);
+    if (!cached || typeof cached !== "object") return null;
+    if (!Number.isFinite(cached.cachedAt)) return null;
+    if (Date.now() - cached.cachedAt > WIND_CACHE_TTL_MS) return null;
+    if (!cached.data || typeof cached.data !== "object") return null;
+    return cached.data;
+  } catch (error) {
+    console.warn("Unable to read cached wind", error);
+    return null;
+  }
+}
+
+function writeWindCache(data) {
+  try {
+    window.localStorage.setItem(WIND_CACHE_KEY, JSON.stringify({
+      cachedAt: Date.now(),
+      data,
+    }));
+  } catch (error) {
+    console.warn("Unable to cache wind", error);
+  }
+}
+
+function weightedWindAverage(directions, speeds) {
+  let u = 0;
+  let v = 0;
+  let total = 0;
+
+  directions.forEach((direction, index) => {
+    const speed = speeds[index];
+    if (!Number.isFinite(direction) || !Number.isFinite(speed) || speed <= 0) return;
+    const radians = degToRad(direction);
+    u += Math.sin(radians) * speed;
+    v += Math.cos(radians) * speed;
+    total += speed;
+  });
+
+  if (total === 0) return null;
+  return {
+    direction: normalizeDegrees(Math.atan2(u, v) * 180 / Math.PI),
+    speed: total / directions.filter((_, index) => Number.isFinite(speeds[index]) && speeds[index] > 0).length,
+  };
 }
 
 function windComponents(runwayHeading, windDir, windSpeed) {
@@ -598,23 +648,52 @@ async function loadMetarTaf() {
 }
 
 async function loadSurfaceWind() {
+  const cachedWind = readWindCache();
+  if (cachedWind) {
+    state.surfaceWind = cachedWind;
+    return;
+  }
+
   const params = new URLSearchParams({
     latitude: LIDE.lat,
     longitude: LIDE.lon,
     current: "wind_speed_10m,wind_direction_10m",
+    hourly: "wind_speed_10m,wind_direction_10m",
     wind_speed_unit: "kn",
     timezone: "Europe/Rome",
+    forecast_days: "1",
   });
 
   const data = await fetchJson(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
   const current = data.current || {};
+  const hourly = data.hourly || {};
+  const currentHour = current.time;
+  let stableWind = null;
+
+  if (Array.isArray(hourly.time)) {
+    const hourIndex = hourly.time.findIndex((time) => time === currentHour);
+    if (hourIndex >= 0) {
+      const indices = [Math.max(0, hourIndex - 1), hourIndex, Math.min(hourly.time.length - 1, hourIndex + 1)];
+      stableWind = weightedWindAverage(
+        indices.map((index) => Number(hourly.wind_direction_10m?.[index])),
+        indices.map((index) => Number(hourly.wind_speed_10m?.[index])),
+      );
+    }
+  }
+
+  const speed = Number.isFinite(stableWind?.speed) ? stableWind.speed : Number(current.wind_speed_10m);
+  const direction = Number.isFinite(stableWind?.direction) ? stableWind.direction : Number(current.wind_direction_10m);
+  const variable = Number.isFinite(speed) && speed < 4;
   state.surfaceWind = {
-    dir: Number(current.wind_direction_10m),
-    to: normalizeDegrees(Number(current.wind_direction_10m) + 180),
-    speed: Number(current.wind_speed_10m),
+    dir: variable ? null : direction,
+    to: variable ? null : normalizeDegrees(direction + 180),
+    speed,
+    variable,
+    rawDirection: direction,
     time: current.time,
-    source: "Open-Meteo",
+    source: "Open-Meteo hourly",
   };
+  writeWindCache(state.surfaceWind);
 }
 
 function setSvgNumber(elm, active) {
@@ -693,9 +772,11 @@ function updateWindArrow(windDir) {
   const blowingTo = Number.isFinite(state.surfaceWind?.to)
     ? state.surfaceWind.to
     : normalizeDegrees(windDir + 180);
-  vector.style.opacity = Number.isFinite(windSpeed) && windSpeed < 3 ? "0.42" : "1";
+  vector.style.opacity = state.surfaceWind?.variable ? "0.2" : "1";
   vector.style.transform = `rotate(${blowingTo - 180}deg)`;
-  label.textContent = Number.isFinite(windSpeed)
+  label.textContent = state.surfaceWind?.variable
+    ? `VRB / ${Math.round(windSpeed || 0)} kt`
+    : Number.isFinite(windSpeed)
     ? `${Math.round(windDir).toString().padStart(3, "0")} / ${Math.round(windSpeed)} kt`
     : `${Math.round(windDir).toString().padStart(3, "0")} / -- kt`;
 }
@@ -733,7 +814,10 @@ function renderBriefing() {
     runwayHeading: runway.heading,
   });
 
-  if (Number.isFinite(windDir) && Number.isFinite(windSpeed)) {
+  if (state.surfaceWind?.variable && Number.isFinite(windSpeed)) {
+    el("windValue").textContent = `VRB/${Math.round(windSpeed)} kt`;
+    el("windDetail").textContent = `${state.surfaceWind?.source || "Wind"} at LIDE, ${state.surfaceWind?.time || "now"} - light and variable`;
+  } else if (Number.isFinite(windDir) && Number.isFinite(windSpeed)) {
     el("windValue").textContent = `${Math.round(windDir).toString().padStart(3, "0")}/${Math.round(windSpeed)} kt`;
     el("windDetail").textContent = `${state.surfaceWind?.source || "Wind"} at LIDE, ${state.surfaceWind?.time || "now"}`;
   } else {
