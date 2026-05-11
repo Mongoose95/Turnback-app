@@ -4,7 +4,7 @@ A simple static GitHub Pages website with an aircraft selector front page, a wei
 
 It shows:
 
-- front page selector for `C172M`, `C150M`, and `8KCAB`
+- front page selector for `C172M`, `C150M`, `8KCAB`, and `FR172J`
 - weight-of-today page with takeoff/landing weight and CG
 - surface wind at LIDE coordinates, stabilized for 30 minutes
 - LIMP METAR and TAF
@@ -42,6 +42,7 @@ Then enable GitHub Pages from the repository settings.
   - `C172M`: existing app baseline
   - `C150M`: uploaded `CESSNA_150_POH.pdf`
   - `8KCAB`: uploaded `8KCAB-POH.pdf`
+  - `FR172J`: uploaded `FR172J_Reims_Rocket_FlightManual_compressed.pdf`
 
 The app requests surface wind for `44.698833, 10.665`, corresponding to Reggio Emilia airport.
 

@@ -98,6 +98,36 @@ const AIRCRAFT_PROFILES = {
       reference: "Using the sample airplane loading data from the uploaded 8KCAB POH.",
     },
   },
+  fr172j: {
+    id: "fr172j",
+    label: "Reims Rocket FR172J",
+    pageTitle: "LIDE Wx",
+    pageSubhead: "FR172J performance profile active with the same live weather and airport tools.",
+    mtowLb: 2551,
+    baseSafetyFt: 1000,
+    baseTakeoffRollFt: 741,
+    baseTakeoff50Ft: 1230,
+    baseLandingRollFt: 620,
+    baseLanding50Ft: 1270,
+    sourceNote: "From the uploaded FR172J Reims Rocket flight manual: takeoff and landing performance at 1157 kg, sea level, standard conditions, hard surface.",
+    loading: {
+      emptyWeightLb: 1494.07,
+      emptyMomentInLb: 55636.34,
+      oilWeightLb: 18.74,
+      oilMomentInLb: -433.98,
+      fuelArmIn: 48.11,
+      maxFuelGal: 46,
+      fuelBurnArmIn: 48.11,
+      frontSeatArmIn: 37.02,
+      rearSeatArmIn: 72.77,
+      baggage1ArmIn: 108,
+      baggage1MaxLb: 200,
+      includeFrontPassenger: true,
+      includeRearPassengers: true,
+      includeBaggage: true,
+      reference: "Using the sample loading problem and loading arrangement from the uploaded FR172J flight manual. Replace with the aircraft-specific weighing sheet when available.",
+    },
+  },
 };
 const LIDE_RUNWAY_LENGTH_M = 1210;
 const FT_TO_M = 0.3048;
@@ -968,6 +998,10 @@ function toggleWeightRow(id, visible) {
   if (row) row.hidden = !visible;
 }
 
+function hasPositiveLimit(value) {
+  return Number.isFinite(value) && value > 0;
+}
+
 function readWeightInputsFromPage() {
   return {
     pilotLb: clampNumber(el("pilotLb")?.value),
@@ -977,6 +1011,45 @@ function readWeightInputsFromPage() {
     baggage2Lb: clampNumber(el("baggage2Lb")?.value),
     fuelTakeoffGal: clampNumber(el("fuelTakeoffGal")?.value),
     fuelLandingGal: clampNumber(el("fuelLandingGal")?.value),
+  };
+}
+
+function writeWeightInputsToPage(inputs) {
+  setWeightFieldValue("pilotLb", inputs.pilotLb);
+  setWeightFieldValue("frontPassengerLb", inputs.frontPassengerLb);
+  setWeightFieldValue("rearPassengersLb", inputs.rearPassengersLb);
+  setWeightFieldValue("baggage1Lb", inputs.baggage1Lb);
+  setWeightFieldValue("baggage2Lb", inputs.baggage2Lb);
+  setWeightFieldValue("fuelTakeoffGal", inputs.fuelTakeoffGal);
+  setWeightFieldValue("fuelLandingGal", inputs.fuelLandingGal);
+}
+
+function fitInputsToMtow(profile, inputs) {
+  const loading = profile.loading || {};
+  const safeInputs = {
+    ...defaultLoadInputs(profile),
+    ...inputs,
+  };
+  const fixedWeight = clampNumber(loading.emptyWeightLb) + clampNumber(loading.oilWeightLb);
+  const payloadWeight =
+    clampNumber(safeInputs.pilotLb) +
+    clampNumber(safeInputs.frontPassengerLb) +
+    clampNumber(safeInputs.rearPassengersLb) +
+    clampNumber(safeInputs.baggage1Lb, 0, loading.baggage1MaxLb || Number.POSITIVE_INFINITY) +
+    clampNumber(safeInputs.baggage2Lb, 0, loading.baggage2MaxLb || Number.POSITIVE_INFINITY);
+  const availableFuelLb = Math.max(0, profile.mtowLb - fixedWeight - payloadWeight);
+  const maxFuelGal = clampNumber(loading.maxFuelGal);
+  const targetFuelGal = Math.min(maxFuelGal, availableFuelLb / 6);
+  const existingBurnGal = Math.max(0, clampNumber(safeInputs.fuelTakeoffGal) - clampNumber(safeInputs.fuelLandingGal));
+
+  return {
+    pilotLb: clampNumber(safeInputs.pilotLb),
+    frontPassengerLb: clampNumber(safeInputs.frontPassengerLb),
+    rearPassengersLb: clampNumber(safeInputs.rearPassengersLb),
+    baggage1Lb: clampNumber(safeInputs.baggage1Lb, 0, loading.baggage1MaxLb || Number.POSITIVE_INFINITY),
+    baggage2Lb: clampNumber(safeInputs.baggage2Lb, 0, loading.baggage2MaxLb || Number.POSITIVE_INFINITY),
+    fuelTakeoffGal: Number(targetFuelGal.toFixed(1)),
+    fuelLandingGal: Number(Math.max(0, targetFuelGal - existingBurnGal).toFixed(1)),
   };
 }
 
@@ -999,6 +1072,7 @@ function initWeightPage() {
   const stored = getStoredLoadData(aircraft.id);
   const initialInputs = stored?.inputs || defaultLoadInputs(aircraft);
   const weightLink = el("weightContinue");
+  const mtowButton = el("weightMtowButton");
 
   document.title = `${aircraft.label} Weight of Today`;
   el("weightPageTitle").textContent = `${aircraft.label} - Weight of Today`;
@@ -1008,16 +1082,10 @@ function initWeightPage() {
 
   toggleWeightRow("frontPassengerRow", profile.includeFrontPassenger);
   toggleWeightRow("rearPassengersRow", profile.includeRearPassengers);
-  toggleWeightRow("baggage1Row", profile.includeBaggage);
-  toggleWeightRow("baggage2Row", profile.includeBaggage);
+  toggleWeightRow("baggage1Row", profile.includeBaggage && hasPositiveLimit(profile.baggage1MaxLb || 1));
+  toggleWeightRow("baggage2Row", profile.includeBaggage && hasPositiveLimit(profile.baggage2MaxLb));
 
-  setWeightFieldValue("pilotLb", initialInputs.pilotLb);
-  setWeightFieldValue("frontPassengerLb", initialInputs.frontPassengerLb);
-  setWeightFieldValue("rearPassengersLb", initialInputs.rearPassengersLb);
-  setWeightFieldValue("baggage1Lb", initialInputs.baggage1Lb);
-  setWeightFieldValue("baggage2Lb", initialInputs.baggage2Lb);
-  setWeightFieldValue("fuelTakeoffGal", initialInputs.fuelTakeoffGal);
-  setWeightFieldValue("fuelLandingGal", initialInputs.fuelLandingGal);
+  writeWeightInputsToPage(initialInputs);
 
   const recalc = () => {
     const load = buildLoadData(aircraft, readWeightInputsFromPage());
@@ -1029,6 +1097,15 @@ function initWeightPage() {
   recalc();
   document.querySelectorAll(".weight-form input").forEach((input) => {
     input.addEventListener("input", recalc);
+  });
+
+  mtowButton.addEventListener("click", () => {
+    const mtowInputs = fitInputsToMtow(aircraft, readWeightInputsFromPage());
+    writeWeightInputsToPage(mtowInputs);
+    const load = recalc();
+    el("weightStatus").textContent = load.overMtow
+      ? `Payload alone is above MTOW, so fuel was reduced to minimum possible. ${load.loadingNote}`
+      : `Fuel adjusted automatically to bring ${aircraft.label} to MTOW. ${load.loadingNote}`;
   });
 
   weightLink.addEventListener("click", (event) => {

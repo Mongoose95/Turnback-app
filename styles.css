@@ -59,7 +59,7 @@ body.home-page {
 
 .aircraft-selector {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 16px;
 }
 
@@ -144,18 +144,36 @@ body.home-page {
   line-height: 1.5;
 }
 
+.weight-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.weight-secondary,
 .weight-continue {
   min-height: 52px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-top: 16px;
   padding: 10px 18px;
   border-radius: 8px;
+  font-weight: 900;
+  font: inherit;
+  text-decoration: none;
+}
+
+.weight-secondary {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.weight-continue {
   background: var(--green);
   color: #fff;
-  font-weight: 900;
-  text-decoration: none;
 }
 
 .aircraft-card {
