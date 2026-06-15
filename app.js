@@ -646,17 +646,40 @@ async function fetchText(url) {
   return response.text();
 }
 
+function unwrapJinaProxyText(text) {
+  const marker = "Markdown Content:";
+  const idx = text.indexOf(marker);
+  if (idx < 0) return text.trim();
+  return text.slice(idx + marker.length).trim();
+}
+
 async function fetchOpenApiText(url) {
   try {
     return await fetchText(url);
   } catch (directError) {
-    const proxied = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`;
+    const proxied = `https://r.jina.ai/http://${url.replace(/^https?:\/\//, "")}`;
     try {
-      return await fetchText(proxied);
+      const proxiedText = await fetchText(proxied);
+      return unwrapJinaProxyText(proxiedText);
     } catch (proxyError) {
       throw new Error(`Direct and fallback fetch failed: ${directError.message}; ${proxyError.message}`);
     }
   }
+}
+
+function firstNonEmptyLine(text) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)[0] || "";
+}
+
+function formatAviationReport(rawText, reportType, icao) {
+  const cleanText = (rawText || "").trim();
+  if (cleanText) return cleanText;
+  return reportType === "METAR"
+    ? `No ${reportType} published for ${icao}.`
+    : `No ${reportType} available for ${icao}.`;
 }
 
 function parseAirportsCsv(csv) {
@@ -830,14 +853,11 @@ async function loadMetarTaf() {
   const metarUrl = "https://aviationweather.gov/api/data/metar?ids=LIMP&format=raw&hours=4";
   const tafUrl = "https://aviationweather.gov/api/data/taf?ids=LIMP&format=raw";
   const [metarData, tafData] = await Promise.all([fetchOpenApiText(metarUrl), fetchOpenApiText(tafUrl)]);
-  const metarLines = metarData.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const tafText = tafData.trim();
+  state.metar = { raw: firstNonEmptyLine(metarData) };
+  state.taf = { raw: tafData.trim() };
 
-  state.metar = { raw: metarLines[0] || "" };
-  state.taf = { raw: tafText };
-
-  el("metarText").textContent = state.metar.raw || "No METAR received.";
-  el("tafText").textContent = state.taf.raw || "No TAF received.";
+  el("metarText").textContent = formatAviationReport(state.metar.raw, "METAR", "LIMP");
+  el("tafText").textContent = formatAviationReport(state.taf.raw, "TAF", "LIMP");
   el("metarAge").textContent = "AviationWeather";
   el("tafAge").textContent = "AviationWeather";
 }
@@ -1265,10 +1285,10 @@ async function loadAirportReports() {
   ]);
 
   const metarText = metarResult.status === "fulfilled"
-    ? metarResult.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)[0] || "No METAR received."
+    ? formatAviationReport(firstNonEmptyLine(metarResult.value), "METAR", icao)
     : "METAR unavailable.";
   const tafText = tafResult.status === "fulfilled"
-    ? tafResult.value.trim() || "No TAF received."
+    ? formatAviationReport(tafResult.value, "TAF", icao)
     : "TAF unavailable.";
 
   el("airportMetarTitle").textContent = `METAR ${icao}`;
